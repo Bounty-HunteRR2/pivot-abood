@@ -137,37 +137,58 @@ async function exportToPDF() {
                     let currentAngle = startAngle;
                     const angleStep = arcSpan / slices;
                     
-                    for (let i = 0; i < slices; i++) {
-                        let nextAngle = currentAngle + angleStep;
-                        
-                        // Handle boundary crossing
-                        if (endAngle < startAngle && nextAngle >= 360) {
-                            nextAngle -= 360;
-                        }
-                        
-                        // Correct angle conversion for PDF coordinates
-                        const a1 = (currentAngle - 90) * Math.PI / 180;
-                        const a2 = (nextAngle - 90) * Math.PI / 180;
-                    
-                        // Draw triangle from center to arc
-                        const x1 = center.x + gradientRadius * Math.cos(a1);
-                        const y1 = center.y + gradientRadius * Math.sin(a1);
-                        const x2 = center.x + gradientRadius * Math.cos(a2);
-                        const y2 = center.y + gradientRadius * Math.sin(a2);
-                        
-                        // Use doc.triangle if available, otherwise draw lines
-                        if (typeof doc.triangle === 'function') {
-                            doc.triangle(center.x, center.y, x1, y1, x2, y2, 'F');
+                    for (let i = 0; i <= slices; i++) {
+                        // Calculate the actual angle for this slice
+                        let angle;
+                        if (endAngle < startAngle) {
+                            // Boundary crossing case (e.g., 270 to 90)
+                            const progress = i / slices;
+                            const totalSpan = (360 - startAngle) + endAngle;
+                            let angleOffset = progress * totalSpan;
+                            angle = startAngle + angleOffset;
+                            if (angle >= 360) angle -= 360;
                         } else {
-                            // Fallback: draw as small filled rectangles
-                            const midX = (x1 + x2) / 2;
-                            const midY = (y1 + y2) / 2;
-                            const width = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-                            doc.circle(midX, midY, width/2, 'F');
+                            // Normal case
+                            angle = startAngle + (i / slices) * arcSpan;
                         }
                         
-                        currentAngle = nextAngle;
-                        if (currentAngle >= 360) currentAngle -= 360;
+                        // Convert to radians with PDF coordinate adjustment
+                        const a = (angle - 90) * Math.PI / 180;
+                    
+                        if (i > 0) {
+                            // Get previous angle
+                            let prevAngle;
+                            if (endAngle < startAngle) {
+                                const prevProgress = (i - 1) / slices;
+                                const totalSpan = (360 - startAngle) + endAngle;
+                                let prevAngleOffset = prevProgress * totalSpan;
+                                prevAngle = startAngle + prevAngleOffset;
+                                if (prevAngle >= 360) prevAngle -= 360;
+                            } else {
+                                prevAngle = startAngle + ((i - 1) / slices) * arcSpan;
+                            }
+                            const prevA = (prevAngle - 90) * Math.PI / 180;
+                            
+                            // Draw triangle from center to arc
+                            const x1 = center.x + gradientRadius * Math.cos(prevA);
+                            const y1 = center.y + gradientRadius * Math.sin(prevA);
+                            const x2 = center.x + gradientRadius * Math.cos(a);
+                            const y2 = center.y + gradientRadius * Math.sin(a);
+                            
+                            // Use doc.triangle if available
+                            if (typeof doc.triangle === 'function') {
+                                doc.triangle(center.x, center.y, x1, y1, x2, y2, 'F');
+                            } else {
+                                // Fallback: draw as small filled circles
+                                const steps = 3;
+                                for (let s = 0; s <= steps; s++) {
+                                    const t = s / steps;
+                                    const x = center.x + gradientRadius * Math.cos(prevA + t * (a - prevA));
+                                    const y = center.y + gradientRadius * Math.sin(prevA + t * (a - prevA));
+                                    doc.circle(x, y, 1, 'F');
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -214,17 +235,10 @@ async function exportToPDF() {
                     const labelX = center.x + labelRadius * Math.cos(labelAngle);
                     const labelY = center.y + labelRadius * Math.sin(labelAngle);
                     
-                    // Draw label with better visibility
+                    // Draw label in black
                     const labelText = `${tower.data.spacing.toFixed(0)}m`;
                     doc.setFontSize(7);
-                    
-                    // White outline for contrast
-                    doc.setDrawColor(255, 255, 255);
-                    doc.setLineWidth(2);
-                    doc.text(labelText, labelX, labelY, { align: 'center', renderingMode: 'stroke' });
-                    
-                    // Green text
-                    doc.setTextColor(0, 100, 0);
+                    doc.setTextColor(0, 0, 0); // Black text
                     doc.text(labelText, labelX, labelY, { align: 'center' });
                 });
             }
@@ -252,20 +266,13 @@ async function exportToPDF() {
                 textY = center.y + (radiusInPDF * 0.5) * Math.sin(midAngle);
             }
             
-            // Draw text with orange color and outline for visibility
+            // Draw text in black
             doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0); // Black text
             const lineHeight = 4.5;
             
             info.forEach((line, index) => {
                 const y = textY + (index - info.length/2 + 0.5) * lineHeight;
-                
-                // Draw text outline (stroke) for better visibility
-                doc.setDrawColor(255, 255, 255); // White outline
-                doc.setLineWidth(3);
-                doc.text(line, textX, y, { align: 'center', renderingMode: 'stroke' });
-                
-                // Draw the actual text
-                doc.setTextColor(255, 165, 0); // Orange color
                 doc.text(line, textX, y, { align: 'center' });
             });
         });
