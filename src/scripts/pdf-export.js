@@ -106,53 +106,71 @@ async function exportToPDF() {
             doc.setLineWidth(0.3);
             
             if (pivot.type === 'circle') {
-                // Draw filled circle - simple!
-                doc.circle(center.x, center.y, radiusInPDF, 'F');
+                // Draw filled circle with gradient effect
+                const gradientSteps = 8;
+                for (let i = gradientSteps; i > 0; i--) {
+                    const gradientRadius = radiusInPDF * (i / gradientSteps);
+                    // Create gradient from dark to light green
+                    const greenValue = 139 + (60 * ((gradientSteps - i) / gradientSteps));
+                    doc.setFillColor(34, greenValue, 34);
+                    doc.circle(center.x, center.y, gradientRadius, 'F');
+                }
             } else {
-                // Draw semi-circle using sectors
-                // For now, let's approximate with a filled arc
+                // Draw semi-circle with gradient effect
                 const startAngle = pivot.startAngle;
                 const endAngle = pivot.endAngle;
+                const arcSpan = calculateArcSpan(startAngle, endAngle);
                 
-                // Draw multiple thin pie slices to fill the semi-circle
-                const slices = 50; // Number of slices
-                let currentAngle = startAngle;
-                const angleStep = calculateArcSpan(startAngle, endAngle) / slices;
-                
-                doc.setFillColor(34, 139, 34);
-                
-                for (let i = 0; i < slices; i++) {
-                    const nextAngle = currentAngle + angleStep;
-                    const a1 = (currentAngle - 90) * Math.PI / 180;
-                    const a2 = (nextAngle - 90) * Math.PI / 180;
+                // Draw gradient layers
+                const gradientSteps = 8;
+                for (let g = gradientSteps; g > 0; g--) {
+                    const gradientRadius = radiusInPDF * (g / gradientSteps);
+                    const greenValue = 139 + (60 * ((gradientSteps - g) / gradientSteps));
+                    doc.setFillColor(34, greenValue, 34);
                     
-                    // Draw triangle from center to arc
-                    const x1 = center.x + radiusInPDF * Math.cos(a1);
-                    const y1 = center.y + radiusInPDF * Math.sin(a1);
-                    const x2 = center.x + radiusInPDF * Math.cos(a2);
-                    const y2 = center.y + radiusInPDF * Math.sin(a2);
+                    // Draw this gradient layer
+                    const slices = 30; // Number of slices per layer
+                    let currentAngle = startAngle;
+                    const angleStep = arcSpan / slices;
                     
-                    // Use doc.triangle if available, otherwise draw lines
-                    if (typeof doc.triangle === 'function') {
-                        doc.triangle(center.x, center.y, x1, y1, x2, y2, 'F');
-                    } else {
-                        // Fallback: draw filled triangular path
-                        doc.setFillColor(34, 139, 34);
-                        // Draw three lines to form triangle
-                        doc.line(center.x, center.y, x1, y1);
-                        doc.line(x1, y1, x2, y2);
-                        doc.line(x2, y2, center.x, center.y);
+                    for (let i = 0; i < slices; i++) {
+                        let nextAngle = currentAngle + angleStep;
+                        
+                        // Handle boundary crossing
+                        if (endAngle < startAngle && nextAngle >= 360) {
+                            nextAngle -= 360;
+                        }
+                        
+                        const a1 = (currentAngle - 90) * Math.PI / 180;
+                        const a2 = (nextAngle - 90) * Math.PI / 180;
+                    
+                        // Draw triangle from center to arc
+                        const x1 = center.x + gradientRadius * Math.cos(a1);
+                        const y1 = center.y + gradientRadius * Math.sin(a1);
+                        const x2 = center.x + gradientRadius * Math.cos(a2);
+                        const y2 = center.y + gradientRadius * Math.sin(a2);
+                        
+                        // Use doc.triangle if available, otherwise draw lines
+                        if (typeof doc.triangle === 'function') {
+                            doc.triangle(center.x, center.y, x1, y1, x2, y2, 'F');
+                        } else {
+                            // Fallback: draw as small filled rectangles
+                            const midX = (x1 + x2) / 2;
+                            const midY = (y1 + y2) / 2;
+                            const width = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                            doc.circle(midX, midY, width/2, 'F');
+                        }
+                        
+                        currentAngle = nextAngle;
+                        if (currentAngle >= 360) currentAngle -= 360;
                     }
-                    
-                    currentAngle = nextAngle;
-                    if (currentAngle >= 360) currentAngle -= 360;
                 }
             }
             
             // Draw towers if present
             if (pivot.towers && pivot.towers.length > 0) {
-                doc.setDrawColor(0, 100, 0); // Darker green for tower circles
-                doc.setLineWidth(0.2);
+                doc.setDrawColor(46, 125, 50); // Nice green for tower circles
+                doc.setLineWidth(0.3);
                 
                 pivot.towers.forEach((tower, index) => {
                     const towerRadiusInPDF = (tower.data.distance / 111000) * scale;
@@ -205,7 +223,7 @@ async function exportToPDF() {
                 });
             }
             
-            // Add pivot information
+            // Add pivot information with clean design
             const info = [];
             info.push(`R: ${pivot.radius}m`);
             info.push(`A: ${pivot.area ? pivot.area.toFixed(1) : '0.0'} ha`);
@@ -217,24 +235,39 @@ async function exportToPDF() {
                 info.push(`${pivot.specifications.power} kW`);
             }
             
-            // Position text
-            let textX = center.x;
-            let textY = center.y;
+            // Calculate text box dimensions
+            doc.setFontSize(9);
+            const lineHeight = 4;
+            const padding = 3;
+            const maxWidth = Math.max(...info.map(line => doc.getTextWidth(line)));
+            const boxWidth = maxWidth + (2 * padding);
+            const boxHeight = (info.length * lineHeight) + (2 * padding);
+            
+            // Position text box
+            let boxX = center.x - boxWidth / 2;
+            let boxY = center.y - boxHeight / 2;
             
             // For semi-circles, position in the middle of the arc
             if (pivot.type === 'semicircle') {
                 const midAngle = calculateMiddleAngle(pivot.startAngle, pivot.endAngle) * Math.PI / 180 - Math.PI/2;
-                textX = center.x + (radiusInPDF * 0.5) * Math.cos(midAngle);
-                textY = center.y + (radiusInPDF * 0.5) * Math.sin(midAngle);
+                boxX = center.x + (radiusInPDF * 0.4) * Math.cos(midAngle) - boxWidth / 2;
+                boxY = center.y + (radiusInPDF * 0.4) * Math.sin(midAngle) - boxHeight / 2;
             }
             
-            // Draw text with orange/yellow color
-            doc.setFontSize(10);
-            doc.setTextColor(255, 140, 0); // Orange color
+            // Draw info box background with shadow
+            doc.setFillColor(0, 0, 0, 0.1); // Shadow
+            doc.roundedRect(boxX + 1, boxY + 1, boxWidth, boxHeight, 1, 1, 'F');
             
-            // Center align text
+            doc.setFillColor(255, 255, 255, 0.95); // White background
+            doc.setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.2);
+            doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 1, 1, 'FD');
+            
+            // Draw text
+            doc.setFontSize(8);
+            doc.setTextColor(50, 50, 50); // Dark gray text
             info.forEach((line, index) => {
-                doc.text(line, textX, textY + (index * 4), { align: 'center' });
+                doc.text(line, boxX + boxWidth / 2, boxY + padding + ((index + 1) * lineHeight) - 1, { align: 'center' });
             });
         });
         
