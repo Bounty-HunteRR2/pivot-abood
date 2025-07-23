@@ -157,7 +157,7 @@ function initializeSizeAdjustment() {
             
             // Update other inputs
             diameterInput.value = (radius * 2).toFixed(0);
-            const area = (Math.PI * radius * radius) / 10000;
+            const area = calculatePivotArea(selectedPivot);
             areaInput.value = area.toFixed(2);
         }
     });
@@ -173,7 +173,7 @@ function initializeSizeAdjustment() {
             
             // Update other inputs
             radiusInput.value = radius.toFixed(0);
-            const area = (Math.PI * radius * radius) / 10000;
+            const area = calculatePivotArea(selectedPivot);
             areaInput.value = area.toFixed(2);
         }
     });
@@ -183,8 +183,18 @@ function initializeSizeAdjustment() {
         if (!selectedPivot) return;
         
         const area = parseFloat(e.target.value);
-        if (!isNaN(area) && area >= 0.5) {
-            const radius = Math.sqrt((area * 10000) / Math.PI);
+        if (!isNaN(area) && area >= 0.1) {
+            let radius;
+            
+            if (selectedPivot.type === 'circle') {
+                // For circle: A = πr²
+                radius = Math.sqrt((area * 10000) / Math.PI);
+            } else {
+                // For semi-circle: A = (angle/360) * πr²
+                const angleDegrees = calculateArcSpan(selectedPivot.startAngle, selectedPivot.endAngle);
+                radius = Math.sqrt((area * 10000 * 360) / (angleDegrees * Math.PI));
+            }
+            
             updatePivotSize(selectedPivot, radius);
             
             // Update other inputs
@@ -466,7 +476,7 @@ window.showSizeAdjustment = function(pivotData) {
         // Set current values
         document.getElementById('radiusInput').value = pivotData.radius.toFixed(0);
         document.getElementById('diameterInput').value = (pivotData.radius * 2).toFixed(0);
-        const area = (Math.PI * pivotData.radius * pivotData.radius) / 10000;
+        const area = calculatePivotArea(pivotData);
         document.getElementById('areaInput').value = area.toFixed(2);
         
         // Show rotation controls for semi-circles

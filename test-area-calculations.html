@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Area Calculation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .pass { background-color: #d4edda; }
+        .fail { background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>Semi-Circle Area Calculation Tests</h1>
+    <div id="results"></div>
+
+    <script>
+        // Copy of the calculateArcSpan function
+        function calculateArcSpan(startAngle, endAngle) {
+            if (endAngle >= startAngle) {
+                return endAngle - startAngle;
+            } else {
+                return (360 - startAngle) + endAngle;
+            }
+        }
+
+        // Copy of the calculatePivotArea function
+        function calculatePivotArea(pivotData) {
+            const radiusMeters = pivotData.radius;
+            
+            if (pivotData.type === 'circle') {
+                const areaSquareMeters = Math.PI * radiusMeters * radiusMeters;
+                return areaSquareMeters / 10000;
+            } else {
+                const angleDegrees = calculateArcSpan(pivotData.startAngle, pivotData.endAngle);
+                const areaSquareMeters = (angleDegrees / 360) * Math.PI * radiusMeters * radiusMeters;
+                return areaSquareMeters / 10000;
+            }
+        }
+
+        // Test cases
+        const tests = [
+            {
+                name: "Full circle (360°)",
+                pivot: { type: 'circle', radius: 400 },
+                expected: 50.27 // π * 400² / 10000 ≈ 50.27 ha
+            },
+            {
+                name: "Semi-circle North (0° to 180°)",
+                pivot: { type: 'semicircle', radius: 400, startAngle: 0, endAngle: 180 },
+                expected: 25.13 // Half of full circle
+            },
+            {
+                name: "Semi-circle East (270° to 90°)",
+                pivot: { type: 'semicircle', radius: 400, startAngle: 270, endAngle: 90 },
+                expected: 25.13 // Half of full circle (boundary crossing)
+            },
+            {
+                name: "Quarter circle (90°)",
+                pivot: { type: 'semicircle', radius: 400, startAngle: 0, endAngle: 90 },
+                expected: 12.57 // Quarter of full circle
+            },
+            {
+                name: "Three-quarter circle (270°)",
+                pivot: { type: 'semicircle', radius: 400, startAngle: 90, endAngle: 360 },
+                expected: 37.70 // Three quarters of full circle
+            },
+            {
+                name: "Boundary crossing large arc (300°)",
+                pivot: { type: 'semicircle', radius: 400, startAngle: 300, endAngle: 240 },
+                expected: 41.89 // 300/360 of full circle
+            }
+        ];
+
+        const resultsDiv = document.getElementById('results');
+        
+        tests.forEach(test => {
+            const result = calculatePivotArea(test.pivot);
+            const pass = Math.abs(result - test.expected) < 0.01;
+            
+            const div = document.createElement('div');
+            div.className = `test ${pass ? 'pass' : 'fail'}`;
+            div.innerHTML = `
+                <h3>${test.name}</h3>
+                <p>Expected: ${test.expected.toFixed(2)} ha</p>
+                <p>Calculated: ${result.toFixed(2)} ha</p>
+                ${test.pivot.startAngle !== undefined ? 
+                    `<p>Arc span: ${calculateArcSpan(test.pivot.startAngle, test.pivot.endAngle)}°</p>` : ''}
+                <p>Status: ${pass ? '✓ PASS' : '✗ FAIL'}</p>
+            `;
+            resultsDiv.appendChild(div);
+        });
+    </script>
+</body>
+</html>

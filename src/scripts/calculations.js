@@ -1,5 +1,30 @@
 // Calculation functions for irrigation pivots
 
+// Helper function to calculate arc span considering boundary crossing
+function calculateArcSpan(startAngle, endAngle) {
+    if (endAngle >= startAngle) {
+        return endAngle - startAngle;
+    } else {
+        // Boundary crossing case (e.g., 270° to 90°)
+        return (360 - startAngle) + endAngle;
+    }
+}
+
+// Calculate area for any pivot type in hectares
+function calculatePivotArea(pivotData) {
+    const radiusMeters = pivotData.radius;
+    
+    if (pivotData.type === 'circle') {
+        const areaSquareMeters = Math.PI * radiusMeters * radiusMeters;
+        return areaSquareMeters / 10000; // hectares
+    } else {
+        // Semi-circle: calculate based on angle span
+        const angleDegrees = calculateArcSpan(pivotData.startAngle, pivotData.endAngle);
+        const areaSquareMeters = (angleDegrees / 360) * Math.PI * radiusMeters * radiusMeters;
+        return areaSquareMeters / 10000; // hectares
+    }
+}
+
 // Update pivot calculations based on type
 function updatePivotCalculations(pivotData) {
     if (pivotData.type === 'circle') {
@@ -16,9 +41,7 @@ function updatePivotCalculations(pivotData) {
 
 // Calculate area for circle pivot in hectares
 function calculateCircleArea(pivotData) {
-    const radiusMeters = pivotData.radius;
-    const areaSquareMeters = Math.PI * radiusMeters * radiusMeters;
-    const areaHectares = areaSquareMeters / 10000; // Convert to hectares
+    const areaHectares = calculatePivotArea(pivotData);
     
     pivotData.area = areaHectares;
     pivotData.areaFormatted = areaHectares.toFixed(2) + ' ha';
@@ -29,16 +52,15 @@ function calculateCircleArea(pivotData) {
 // Calculate arc length for semi-circle pivot in meters
 function calculateSemiCircleLength(pivotData) {
     const radiusMeters = pivotData.radius;
-    const angleDegrees = Math.abs(pivotData.endAngle - pivotData.startAngle);
+    const angleDegrees = calculateArcSpan(pivotData.startAngle, pivotData.endAngle);
     const angleRadians = angleDegrees * Math.PI / 180;
     const arcLength = radiusMeters * angleRadians;
     
     pivotData.arcLength = arcLength;
     pivotData.arcLengthFormatted = arcLength.toFixed(1) + ' m';
     
-    // Also calculate area for semi-circle
-    const areaSquareMeters = 0.5 * radiusMeters * radiusMeters * angleRadians;
-    const areaHectares = areaSquareMeters / 10000;
+    // Calculate area using the shared function
+    const areaHectares = calculatePivotArea(pivotData);
     pivotData.area = areaHectares;
     pivotData.areaFormatted = areaHectares.toFixed(2) + ' ha';
     
@@ -77,7 +99,7 @@ function updatePivotInfo(pivotData) {
     } else {
         infoHTML += `<div><strong>Arc Length:</strong> <span>${pivotData.arcLengthFormatted}</span></div>`;
         infoHTML += `<div><strong>Area:</strong> <span>${pivotData.areaFormatted}</span></div>`;
-        infoHTML += `<div><strong>Angle:</strong> <span>${Math.abs(pivotData.endAngle - pivotData.startAngle).toFixed(0)}°</span></div>`;
+        infoHTML += `<div><strong>Angle:</strong> <span>${calculateArcSpan(pivotData.startAngle, pivotData.endAngle).toFixed(0)}°</span></div>`;
     }
     
     // Add specifications if available

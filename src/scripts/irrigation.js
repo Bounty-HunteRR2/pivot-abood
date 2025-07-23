@@ -629,7 +629,7 @@ function handleResizeMouseMove(e) {
     if (document.getElementById('radiusInput')) {
         document.getElementById('radiusInput').value = radius.toFixed(0);
         document.getElementById('diameterInput').value = (radius * 2).toFixed(0);
-        const area = (Math.PI * radius * radius) / 10000;
+        const area = calculatePivotArea(resizingPivot);
         document.getElementById('areaInput').value = area.toFixed(2);
     }
     

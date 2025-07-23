@@ -9,7 +9,13 @@
       "Bash(gh:*)",
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(python:*)",
+      "Bash(npx http-server:*)",
+      "Bash(cd \"C:\\Users\\user\\Desktop\\ABOOD pivot irrigation, Center Pivot Irrigation Planning Tool\")",
+      "Bash(git add index.html src/scripts/app.js src/scripts/export.js src/scripts/irrigation.js src/scripts/towers.js src/styles/main.css)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix rotation and boundary-crossing angles for semi-circles\n\n- Removed problematic rotation handles that were escaping\n- Added mouse rotation mode with button and keyboard shortcut (R)\n- Fixed East orientation (270° to 90°) and other boundary-crossing angles\n- Fixed angle validation to handle arcs crossing 0°/360° boundary\n- Updated semi-circle and tower drawing for boundary crossings\n- Fixed KML export to include semi-circle towers\n- Added rotation controls in sidebar with angle inputs and presets\n- Fixed bug where end angle input couldn''t be deleted\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push origin main)"
     ],
     "deny": []
   }
