@@ -117,13 +117,12 @@ async function exportToPDF() {
                 }
             } else {
                 // Draw semi-circle with gradient effect
-                // Fix angle for PDF coordinate system (Y-axis is flipped)
-                // In PDF: 0° is East, 90° is North, 180° is West, 270° is South
-                // In our app: 0° is North, 90° is East, 180° is South, 270° is West
-                // So we need to rotate by -90° and flip
-                const startAngle = pivot.startAngle;
-                const endAngle = pivot.endAngle;
-                const arcSpan = calculateArcSpan(startAngle, endAngle);
+                // Fix angle transformation from app coordinates to PDF coordinates
+                // App: 0° = North, 90° = East, 180° = South, 270° = West
+                // PDF: 0° = East (right), 90° = South (down), 180° = West (left), 270° = North (up)
+                // Transform: PDF_angle = App_angle - 90
+                const startAnglePDF = pivot.startAngle - 90;
+                const endAnglePDF = pivot.endAngle - 90;
                 
                 // Draw gradient layers
                 const gradientSteps = 8;
@@ -132,64 +131,45 @@ async function exportToPDF() {
                     const greenValue = 139 + (60 * ((gradientSteps - g) / gradientSteps));
                     doc.setFillColor(34, greenValue, 34);
                     
-                    // Draw this gradient layer
-                    const slices = 30; // Number of slices per layer
-                    let currentAngle = startAngle;
-                    const angleStep = arcSpan / slices;
+                    // Draw arc using lines method
+                    const arcPoints = 60; // More points for smoother arc
+                    const arcSpan = calculateArcSpan(pivot.startAngle, pivot.endAngle);
                     
-                    for (let i = 0; i <= slices; i++) {
-                        // Calculate the actual angle for this slice
+                    // Start from center
+                    const path = [[center.x, center.y]];
+                    
+                    // Add arc points
+                    for (let i = 0; i <= arcPoints; i++) {
                         let angle;
-                        if (endAngle < startAngle) {
-                            // Boundary crossing case (e.g., 270 to 90)
-                            const progress = i / slices;
-                            const totalSpan = (360 - startAngle) + endAngle;
+                        if (pivot.endAngle < pivot.startAngle) {
+                            // Boundary crossing case
+                            const progress = i / arcPoints;
+                            const totalSpan = (360 - pivot.startAngle) + pivot.endAngle;
                             let angleOffset = progress * totalSpan;
-                            angle = startAngle + angleOffset;
+                            angle = pivot.startAngle + angleOffset;
                             if (angle >= 360) angle -= 360;
                         } else {
                             // Normal case
-                            angle = startAngle + (i / slices) * arcSpan;
+                            angle = pivot.startAngle + (i / arcPoints) * arcSpan;
                         }
                         
-                        // Convert to radians with PDF coordinate adjustment
-                        const a = (angle - 90) * Math.PI / 180;
-                    
-                        if (i > 0) {
-                            // Get previous angle
-                            let prevAngle;
-                            if (endAngle < startAngle) {
-                                const prevProgress = (i - 1) / slices;
-                                const totalSpan = (360 - startAngle) + endAngle;
-                                let prevAngleOffset = prevProgress * totalSpan;
-                                prevAngle = startAngle + prevAngleOffset;
-                                if (prevAngle >= 360) prevAngle -= 360;
-                            } else {
-                                prevAngle = startAngle + ((i - 1) / slices) * arcSpan;
-                            }
-                            const prevA = (prevAngle - 90) * Math.PI / 180;
-                            
-                            // Draw triangle from center to arc
-                            const x1 = center.x + gradientRadius * Math.cos(prevA);
-                            const y1 = center.y + gradientRadius * Math.sin(prevA);
-                            const x2 = center.x + gradientRadius * Math.cos(a);
-                            const y2 = center.y + gradientRadius * Math.sin(a);
-                            
-                            // Use doc.triangle if available
-                            if (typeof doc.triangle === 'function') {
-                                doc.triangle(center.x, center.y, x1, y1, x2, y2, 'F');
-                            } else {
-                                // Fallback: draw as small filled circles
-                                const steps = 3;
-                                for (let s = 0; s <= steps; s++) {
-                                    const t = s / steps;
-                                    const x = center.x + gradientRadius * Math.cos(prevA + t * (a - prevA));
-                                    const y = center.y + gradientRadius * Math.sin(prevA + t * (a - prevA));
-                                    doc.circle(x, y, 1, 'F');
-                                }
-                            }
-                        }
+                        // Convert to PDF coordinates
+                        const pdfAngle = (angle - 90) * Math.PI / 180;
+                        const x = center.x + gradientRadius * Math.cos(pdfAngle);
+                        const y = center.y + gradientRadius * Math.sin(pdfAngle);
+                        path.push([x, y]);
                     }
+                    
+                    // Close path back to center
+                    path.push([center.x, center.y]);
+                    
+                    // Draw filled polygon
+                    doc.setFillColor(34, greenValue, 34);
+                    const lineSegments = [];
+                    for (let i = 1; i < path.length; i++) {
+                        lineSegments.push([path[i][0] - path[i-1][0], path[i][1] - path[i-1][1]]);
+                    }
+                    doc.lines(lineSegments, path[0][0], path[0][1], [1, 1], 'F');
                 }
             }
             
@@ -208,18 +188,38 @@ async function exportToPDF() {
                         // Draw tower arc for semi-circle
                         // Use multiple small lines to create arc
                         const arcPoints = 30;
-                        const startA = pivot.startAngle;
-                        const span = calculateArcSpan(pivot.startAngle, pivot.endAngle);
-                        const step = span / arcPoints;
+                        const arcSpan = calculateArcSpan(pivot.startAngle, pivot.endAngle);
                         
                         for (let i = 0; i < arcPoints; i++) {
-                            const angle1 = (startA + i * step - 90) * Math.PI / 180;
-                            const angle2 = (startA + (i + 1) * step - 90) * Math.PI / 180;
+                            // Calculate angles properly handling boundary crossing
+                            let angle1, angle2;
+                            if (pivot.endAngle < pivot.startAngle) {
+                                // Boundary crossing case
+                                const progress1 = i / arcPoints;
+                                const progress2 = (i + 1) / arcPoints;
+                                const totalSpan = (360 - pivot.startAngle) + pivot.endAngle;
+                                
+                                let angleOffset1 = progress1 * totalSpan;
+                                angle1 = pivot.startAngle + angleOffset1;
+                                if (angle1 >= 360) angle1 -= 360;
+                                
+                                let angleOffset2 = progress2 * totalSpan;
+                                angle2 = pivot.startAngle + angleOffset2;
+                                if (angle2 >= 360) angle2 -= 360;
+                            } else {
+                                // Normal case
+                                angle1 = pivot.startAngle + (i / arcPoints) * arcSpan;
+                                angle2 = pivot.startAngle + ((i + 1) / arcPoints) * arcSpan;
+                            }
                             
-                            const x1 = center.x + towerRadiusInPDF * Math.cos(angle1);
-                            const y1 = center.y + towerRadiusInPDF * Math.sin(angle1);
-                            const x2 = center.x + towerRadiusInPDF * Math.cos(angle2);
-                            const y2 = center.y + towerRadiusInPDF * Math.sin(angle2);
+                            // Convert to PDF coordinates
+                            const pdfAngle1 = (angle1 - 90) * Math.PI / 180;
+                            const pdfAngle2 = (angle2 - 90) * Math.PI / 180;
+                            
+                            const x1 = center.x + towerRadiusInPDF * Math.cos(pdfAngle1);
+                            const y1 = center.y + towerRadiusInPDF * Math.sin(pdfAngle1);
+                            const x2 = center.x + towerRadiusInPDF * Math.cos(pdfAngle2);
+                            const y2 = center.y + towerRadiusInPDF * Math.sin(pdfAngle2);
                             
                             doc.line(x1, y1, x2, y2);
                         }
