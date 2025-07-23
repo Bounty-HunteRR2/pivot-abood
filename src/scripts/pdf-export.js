@@ -1,4 +1,4 @@
-// PDF export functionality - Clean visual design
+// PDF export functionality - Direct drawing approach
 
 async function exportToPDF() {
     try {
@@ -10,114 +10,210 @@ async function exportToPDF() {
         // Page dimensions for landscape A4
         const pageWidth = 297;
         const pageHeight = 210;
+        const margin = 15;
         
-        // Hide UI elements
-        const sidebar = document.querySelector('.sidebar');
-        const header = document.querySelector('.header');
-        const mapControls = document.querySelectorAll('.leaflet-control');
-        const originalSidebarDisplay = sidebar.style.display;
-        const originalHeaderDisplay = header.style.display;
-        
-        sidebar.style.display = 'none';
-        header.style.display = 'none';
-        mapControls.forEach(control => control.style.display = 'none');
-        
-        // Store original map state
-        const originalCenter = map.getCenter();
-        const originalZoom = map.getZoom();
-        
-        // Calculate bounds to include all content
-        let bounds;
-        if (landPolygon && pivotLayers.length > 0) {
-            // Include both land polygon and all pivots
-            const group = new L.featureGroup([landPolygon, ...pivotLayers.map(p => p.circle)]);
-            bounds = group.getBounds();
-        } else if (landPolygon) {
-            bounds = landPolygon.getBounds();
-        } else if (pivotLayers.length > 0) {
-            const group = new L.featureGroup(pivotLayers.map(p => p.circle));
-            bounds = group.getBounds();
-        } else {
-            // No content to export
+        // Check if there's content to export
+        if (pivotLayers.length === 0 && !landPolygon) {
             showNotification('No content to export', 'error');
-            sidebar.style.display = originalSidebarDisplay;
-            header.style.display = originalHeaderDisplay;
-            mapControls.forEach(control => control.style.display = '');
             return;
         }
         
-        // Add padding to bounds
-        const latPadding = (bounds.getNorth() - bounds.getSouth()) * 0.1;
-        const lngPadding = (bounds.getEast() - bounds.getWest()) * 0.1;
-        bounds = L.latLngBounds(
-            [bounds.getSouth() - latPadding, bounds.getWest() - lngPadding],
-            [bounds.getNorth() + latPadding, bounds.getEast() + lngPadding]
-        );
+        // Calculate bounds for all content
+        let minLat = Infinity, maxLat = -Infinity;
+        let minLng = Infinity, maxLng = -Infinity;
         
-        // Fit map to bounds
-        map.fitBounds(bounds);
-        
-        // Wait for map to render
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Capture the map
-        const mapContainer = document.getElementById('map');
-        const canvas = await html2canvas(mapContainer, {
-            scale: 3, // High quality
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff',
-            ignoreElements: (element) => {
-                return element.classList.contains('leaflet-control') || 
-                       element.classList.contains('leaflet-control-container');
-            }
-        });
-        
-        // Restore UI elements
-        sidebar.style.display = originalSidebarDisplay;
-        header.style.display = originalHeaderDisplay;
-        mapControls.forEach(control => control.style.display = '');
-        map.setView(originalCenter, originalZoom);
-        
-        // Add map image to PDF
-        const imgData = canvas.toDataURL('image/png', 1.0);
-        
-        // Calculate dimensions to fit the page
-        const margin = 10;
-        const maxWidth = pageWidth - (2 * margin);
-        const maxHeight = pageHeight - (2 * margin);
-        
-        let imgWidth = maxWidth;
-        let imgHeight = (canvas.height / canvas.width) * imgWidth;
-        
-        if (imgHeight > maxHeight) {
-            imgHeight = maxHeight;
-            imgWidth = (canvas.width / canvas.height) * imgHeight;
+        // Include land polygon bounds
+        if (landPolygon) {
+            const coords = landPolygon.getLatLngs()[0];
+            coords.forEach(coord => {
+                minLat = Math.min(minLat, coord.lat);
+                maxLat = Math.max(maxLat, coord.lat);
+                minLng = Math.min(minLng, coord.lng);
+                maxLng = Math.max(maxLng, coord.lng);
+            });
         }
         
-        // Center the image
-        const xOffset = (pageWidth - imgWidth) / 2;
-        const yOffset = (pageHeight - imgHeight) / 2;
+        // Include pivot bounds
+        pivotLayers.forEach(pivot => {
+            const lat = pivot.center.lat;
+            const lng = pivot.center.lng;
+            const radiusInDegrees = pivot.radius / 111000; // Approximate conversion
+            
+            minLat = Math.min(minLat, lat - radiusInDegrees);
+            maxLat = Math.max(maxLat, lat + radiusInDegrees);
+            minLng = Math.min(minLng, lng - radiusInDegrees);
+            maxLng = Math.max(maxLng, lng + radiusInDegrees);
+        });
         
-        // Add white background
+        // Add padding
+        const latPadding = (maxLat - minLat) * 0.1;
+        const lngPadding = (maxLng - minLng) * 0.1;
+        minLat -= latPadding;
+        maxLat += latPadding;
+        minLng -= lngPadding;
+        maxLng += lngPadding;
+        
+        // Calculate scale to fit content
+        const contentWidth = pageWidth - (2 * margin);
+        const contentHeight = pageHeight - (2 * margin);
+        
+        const latRange = maxLat - minLat;
+        const lngRange = maxLng - minLng;
+        
+        const scaleX = contentWidth / lngRange;
+        const scaleY = contentHeight / latRange;
+        const scale = Math.min(scaleX, scaleY);
+        
+        // Center the content
+        const actualWidth = lngRange * scale;
+        const actualHeight = latRange * scale;
+        const offsetX = margin + (contentWidth - actualWidth) / 2;
+        const offsetY = margin + (contentHeight - actualHeight) / 2;
+        
+        // Coordinate conversion functions
+        const latLngToPDF = (lat, lng) => {
+            const x = offsetX + (lng - minLng) * scale;
+            const y = offsetY + (maxLat - lat) * scale; // Flip Y axis
+            return { x, y };
+        };
+        
+        // Set white background
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
         
-        // Add the map image
-        doc.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
-        
-        // Add pivot information overlays
-        const scale = imgWidth / canvas.width;
-        
-        pivotLayers.forEach((pivot, index) => {
-            // Get pivot position on the map
-            const point = map.latLngToContainerPoint(pivot.center);
+        // Draw land polygon if exists
+        if (landPolygon) {
+            const coords = landPolygon.getLatLngs()[0];
+            doc.setDrawColor(139, 69, 19); // Brown color for land boundary
+            doc.setLineWidth(0.5);
             
-            // Convert to PDF coordinates
-            const pdfX = xOffset + (point.x * scale);
-            const pdfY = yOffset + (point.y * scale);
+            let firstPoint = true;
+            coords.forEach(coord => {
+                const point = latLngToPDF(coord.lat, coord.lng);
+                if (firstPoint) {
+                    doc.moveTo(point.x, point.y);
+                    firstPoint = false;
+                } else {
+                    doc.lineTo(point.x, point.y);
+                }
+            });
+            doc.closePath();
+            doc.stroke();
+        }
+        
+        // Draw each pivot
+        pivotLayers.forEach(pivot => {
+            const center = latLngToPDF(pivot.center.lat, pivot.center.lng);
+            const radiusInPDF = (pivot.radius / 111000) * scale;
             
-            // Prepare pivot info text
+            // Set green fill color
+            doc.setFillColor(34, 139, 34); // Forest green
+            doc.setDrawColor(34, 139, 34);
+            doc.setLineWidth(0.3);
+            
+            if (pivot.type === 'circle') {
+                // Draw filled circle
+                doc.circle(center.x, center.y, radiusInPDF, 'F');
+            } else {
+                // Draw filled semi-circle
+                const startAngle = pivot.startAngle * Math.PI / 180;
+                const endAngle = pivot.endAngle * Math.PI / 180;
+                
+                // Draw arc with fill
+                doc.setFillColor(34, 139, 34);
+                
+                // Create path for semi-circle
+                const points = [[center.x, center.y]]; // Start from center
+                
+                // Generate arc points
+                const angleStep = 2 * Math.PI / 180; // 2 degree steps
+                let currentAngle = startAngle;
+                
+                // Handle boundary crossing
+                if (pivot.endAngle < pivot.startAngle) {
+                    // First part: from start to 360
+                    while (currentAngle <= 2 * Math.PI) {
+                        const x = center.x + radiusInPDF * Math.cos(currentAngle - Math.PI/2);
+                        const y = center.y + radiusInPDF * Math.sin(currentAngle - Math.PI/2);
+                        points.push([x, y]);
+                        currentAngle += angleStep;
+                    }
+                    // Second part: from 0 to end
+                    currentAngle = 0;
+                    while (currentAngle <= endAngle) {
+                        const x = center.x + radiusInPDF * Math.cos(currentAngle - Math.PI/2);
+                        const y = center.y + radiusInPDF * Math.sin(currentAngle - Math.PI/2);
+                        points.push([x, y]);
+                        currentAngle += angleStep;
+                    }
+                } else {
+                    // Normal case
+                    while (currentAngle <= endAngle) {
+                        const x = center.x + radiusInPDF * Math.cos(currentAngle - Math.PI/2);
+                        const y = center.y + radiusInPDF * Math.sin(currentAngle - Math.PI/2);
+                        points.push([x, y]);
+                        currentAngle += angleStep;
+                    }
+                }
+                
+                // Draw the filled shape
+                points.forEach((point, index) => {
+                    if (index === 0) {
+                        doc.moveTo(point[0], point[1]);
+                    } else {
+                        doc.lineTo(point[0], point[1]);
+                    }
+                });
+                doc.closePath();
+                doc.fill();
+            }
+            
+            // Draw towers if present
+            if (pivot.towers && pivot.towers.length > 0) {
+                doc.setDrawColor(0, 100, 0); // Darker green for tower circles
+                doc.setLineWidth(0.2);
+                doc.setFillColor(255, 255, 255); // White fill for labels
+                
+                pivot.towers.forEach((tower, index) => {
+                    const towerRadiusInPDF = (tower.data.distance / 111000) * scale;
+                    
+                    if (pivot.type === 'circle') {
+                        // Draw tower circle
+                        doc.circle(center.x, center.y, towerRadiusInPDF, 'S');
+                    } else {
+                        // Draw tower arc for semi-circle
+                        const startAngle = pivot.startAngle - 90; // Adjust for PDF coordinates
+                        const endAngle = pivot.endAngle - 90;
+                        
+                        // Draw arc
+                        doc.arc(center.x, center.y, towerRadiusInPDF, startAngle, endAngle, 'S');
+                    }
+                    
+                    // Add tower distance label
+                    const labelAngle = pivot.type === 'circle' ? 0 : 
+                        calculateMiddleAngle(pivot.startAngle, pivot.endAngle) * Math.PI / 180 - Math.PI/2;
+                    
+                    const labelRadius = index === 0 ? towerRadiusInPDF / 2 : 
+                        towerRadiusInPDF - ((tower.data.spacing / 111000) * scale / 2);
+                    
+                    const labelX = center.x + labelRadius * Math.cos(labelAngle);
+                    const labelY = center.y + labelRadius * Math.sin(labelAngle);
+                    
+                    // Draw label background
+                    const labelText = `${tower.data.spacing.toFixed(0)}m`;
+                    doc.setFontSize(6);
+                    const textWidth = doc.getTextWidth(labelText);
+                    
+                    doc.setFillColor(255, 255, 255);
+                    doc.rect(labelX - textWidth/2 - 1, labelY - 2.5, textWidth + 2, 5, 'F');
+                    
+                    // Draw label text
+                    doc.setTextColor(0, 100, 0);
+                    doc.text(labelText, labelX, labelY, { align: 'center' });
+                });
+            }
+            
+            // Add pivot information
             const info = [];
             info.push(`R: ${pivot.radius}m`);
             info.push(`A: ${pivot.area ? pivot.area.toFixed(1) : '0.0'} ha`);
@@ -129,63 +225,44 @@ async function exportToPDF() {
                 info.push(`${pivot.specifications.power} kW`);
             }
             
-            // Calculate text box dimensions
+            // Position text
+            let textX = center.x;
+            let textY = center.y;
+            
+            // For semi-circles, position in the middle of the arc
+            if (pivot.type === 'semicircle') {
+                const midAngle = calculateMiddleAngle(pivot.startAngle, pivot.endAngle) * Math.PI / 180 - Math.PI/2;
+                textX = center.x + (radiusInPDF * 0.5) * Math.cos(midAngle);
+                textY = center.y + (radiusInPDF * 0.5) * Math.sin(midAngle);
+            }
+            
+            // Draw text with orange/yellow color
             doc.setFontSize(10);
-            const lineHeight = 4;
-            const padding = 2;
-            const textWidth = Math.max(...info.map(line => doc.getTextWidth(line))) + (2 * padding);
-            const textHeight = (info.length * lineHeight) + (2 * padding);
+            doc.setTextColor(255, 140, 0); // Orange color
             
-            // Position text box (offset to avoid overlapping with pivot)
-            let textX = pdfX + (pivot.radius * scale * 0.7);
-            let textY = pdfY - (textHeight / 2);
-            
-            // Adjust position to keep text within page bounds
-            if (textX + textWidth > pageWidth - margin) {
-                textX = pdfX - textWidth - (pivot.radius * scale * 0.7);
-            }
-            if (textY < margin) {
-                textY = margin;
-            }
-            if (textY + textHeight > pageHeight - margin) {
-                textY = pageHeight - margin - textHeight;
-            }
-            
-            // Draw text background
-            doc.setFillColor(255, 255, 255, 0.9);
-            doc.setDrawColor(100, 100, 100);
-            doc.roundedRect(textX, textY, textWidth, textHeight, 1, 1, 'FD');
-            
-            // Draw text
-            doc.setTextColor(50, 50, 50);
-            doc.setFontSize(9);
-            info.forEach((line, i) => {
-                doc.text(line, textX + padding, textY + padding + ((i + 1) * lineHeight));
+            // Center align text
+            info.forEach((line, index) => {
+                doc.text(line, textX, textY + (index * 4), { align: 'center' });
             });
-            
-            // Add tower count if applicable
-            if (pivot.towers && pivot.towers.length > 0) {
-                doc.setFontSize(8);
-                doc.setTextColor(100, 100, 100);
-                doc.text(`${pivot.towerCount} towers`, textX + padding, textY + textHeight - 1);
-            }
         });
         
-        // Add title and date in corner
+        // Add title
         doc.setFontSize(12);
         doc.setTextColor(50, 50, 50);
-        doc.text('Center Pivot Irrigation Plan', margin, margin + 5);
+        doc.text('Center Pivot Irrigation Plan', pageWidth / 2, 10, { align: 'center' });
         
+        // Add date
         doc.setFontSize(10);
         const today = new Date().toLocaleDateString();
-        doc.text(today, margin, margin + 10);
+        doc.text(today, pageWidth / 2, 15, { align: 'center' });
         
-        // Add total area in bottom corner
+        // Add total area in bottom
         if (pivotLayers.length > 0) {
             const totalArea = calculateTotalArea();
             doc.setFontSize(10);
+            doc.setTextColor(50, 50, 50);
             doc.text(`Total Area: ${totalArea.toFixed(2)} ha (${pivotLayers.length} pivot${pivotLayers.length !== 1 ? 's' : ''})`, 
-                     margin, pageHeight - margin);
+                     pageWidth / 2, pageHeight - 5, { align: 'center' });
         }
         
         // Save the PDF
@@ -197,11 +274,19 @@ async function exportToPDF() {
     } catch (error) {
         console.error('Error generating PDF:', error);
         showNotification('Error generating PDF: ' + error.message, 'error');
-        
-        // Restore UI in case of error
-        document.querySelector('.sidebar').style.display = '';
-        document.querySelector('.header').style.display = '';
-        document.querySelectorAll('.leaflet-control').forEach(control => control.style.display = '');
+    }
+}
+
+// Helper function to calculate middle angle for semi-circles
+function calculateMiddleAngle(startAngle, endAngle) {
+    if (endAngle >= startAngle) {
+        return (startAngle + endAngle) / 2;
+    } else {
+        // Boundary crossing case
+        const totalAngle = (360 - startAngle) + endAngle;
+        let midAngle = startAngle + totalAngle / 2;
+        if (midAngle >= 360) midAngle -= 360;
+        return midAngle;
     }
 }
 
@@ -213,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Enable/disable button based on content
         const updateExportButton = () => {
-            exportBtn.disabled = pivotLayers.length === 0;
+            exportBtn.disabled = pivotLayers.length === 0 && !landPolygon;
         };
         
         // Initial state
@@ -224,6 +309,13 @@ document.addEventListener('DOMContentLoaded', function() {
         window.selectPivot = function(pivotData) {
             originalSelectPivot(pivotData);
             updateExportButton();
+        };
+        
+        // Also update when land polygon changes
+        const originalImportLandPolygon = window.importLandPolygon;
+        window.importLandPolygon = function(file) {
+            originalImportLandPolygon(file);
+            setTimeout(updateExportButton, 100);
         };
     }
 });
