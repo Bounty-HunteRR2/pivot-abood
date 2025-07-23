@@ -80,6 +80,28 @@ function calculateTotalArea() {
     return totalArea;
 }
 
+// Debug function to list all pivots
+function debugPivotAreas() {
+    console.log('=== Pivot Area Debug ===');
+    console.log(`Total pivots: ${pivotLayers.length}`);
+    
+    pivotLayers.forEach((pivot, index) => {
+        console.log(`Pivot ${index + 1}:`, {
+            id: pivot.id,
+            type: pivot.type,
+            radius: pivot.radius + 'm',
+            area: pivot.area ? pivot.area.toFixed(2) + ' ha' : 'Not calculated',
+            angles: pivot.type === 'semicircle' ? `${pivot.startAngle}° to ${pivot.endAngle}°` : 'Full circle'
+        });
+    });
+    
+    console.log(`Total Area: ${calculateTotalArea().toFixed(2)} ha`);
+    console.log('=====================');
+}
+
+// Make debug function globally available
+window.debugPivotAreas = debugPivotAreas;
+
 // Update pivot information display
 function updatePivotInfo(pivotData) {
     const infoDiv = document.getElementById('pivotInfo');
@@ -114,11 +136,29 @@ function updatePivotInfo(pivotData) {
     
     // Add total area summary
     const totalArea = calculateTotalArea();
+    const pivotCount = pivotLayers.length;
     infoHTML += `<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #ecf0f1;">`;
-    infoHTML += `<strong>Total Irrigated Area:</strong> ${totalArea.toFixed(2)} ha`;
+    infoHTML += `<strong>Total Irrigated Area (${pivotCount} pivot${pivotCount !== 1 ? 's' : ''}):</strong> ${totalArea.toFixed(2)} ha`;
+    
+    // Show breakdown if multiple pivots
+    if (pivotCount > 1) {
+        infoHTML += '<div style="font-size: 0.85rem; margin-top: 0.5rem; color: #7f8c8d;">';
+        pivotLayers.forEach((pivot, index) => {
+            const isSelected = pivotData && pivot.id === pivotData.id;
+            infoHTML += `<div>${isSelected ? '▸ ' : ''}Pivot ${index + 1}: ${pivot.area ? pivot.area.toFixed(2) : '0.00'} ha</div>`;
+        });
+        infoHTML += '</div>';
+    }
+    
     infoHTML += '</div>';
     
     infoDiv.innerHTML = infoHTML;
+    
+    // Debug log when total area seems incorrect
+    if (pivotData && Math.abs(totalArea - pivotData.area) > 0.01 && pivotCount === 1) {
+        console.warn('Total area mismatch detected!');
+        debugPivotAreas();
+    }
 }
 
 // Show specification form for selected pivot
