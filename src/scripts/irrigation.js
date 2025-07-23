@@ -81,7 +81,7 @@ function createSemiCirclePivot(latlng, radius = 400, startAngle = 0, endAngle = 
     
     // Create semi-circle polygon
     const points = [];
-    const angleStep = 5; // degrees
+    const angleStep = 2; // degrees for smoother curves
     
     // Add center point
     points.push(latlng);
@@ -317,7 +317,7 @@ function updateSemiCircle(shape, center, radius) {
     if (!pivotData) return;
     
     const points = [];
-    const angleStep = 5;
+    const angleStep = 2; // Higher resolution for smoother curves
     
     points.push(center);
     
@@ -335,7 +335,7 @@ function updateSemiCircle(shape, center, radius) {
 // Update semi-circle rotation
 function updateSemiCircleRotation(pivotData) {
     const points = [];
-    const angleStep = 5;
+    const angleStep = 2; // Higher resolution for smoother curves
     
     points.push(pivotData.center);
     

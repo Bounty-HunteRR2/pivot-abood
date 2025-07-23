@@ -145,8 +145,8 @@ function generatePivotKML(pivot) {
         kml += '          <LinearRing>\n';
         kml += '            <coordinates>\n';
         
-        // Generate circle points
-        for (let angle = 0; angle <= 360; angle += 10) {
+        // Generate circle points with high resolution (every 2 degrees for smooth curves)
+        for (let angle = 0; angle <= 360; angle += 2) {
             const radian = angle * Math.PI / 180;
             const lat = pivot.center.lat + (pivot.radius / 111000) * Math.sin(radian);
             const lng = pivot.center.lng + (pivot.radius / (111000 * Math.cos(pivot.center.lat * Math.PI / 180))) * Math.cos(radian);
@@ -167,8 +167,8 @@ function generatePivotKML(pivot) {
         // Add center point
         kml += `              ${pivot.center.lng},${pivot.center.lat},0\n`;
         
-        // Add arc points
-        for (let angle = pivot.startAngle; angle <= pivot.endAngle; angle += 5) {
+        // Add arc points with high resolution (every 2 degrees for smooth curves)
+        for (let angle = pivot.startAngle; angle <= pivot.endAngle; angle += 2) {
             const radian = angle * Math.PI / 180;
             const lat = pivot.center.lat + (pivot.radius / 111000) * Math.sin(radian);
             const lng = pivot.center.lng + (pivot.radius / (111000 * Math.cos(pivot.center.lat * Math.PI / 180))) * Math.cos(radian);
@@ -204,8 +204,8 @@ function generatePivotKML(pivot) {
             kml += '      <LineString>\n';
             kml += '        <coordinates>\n';
             
-            // Generate tower circle points
-            for (let angle = 0; angle <= 360; angle += 30) {
+            // Generate tower circle points with high resolution
+            for (let angle = 0; angle <= 360; angle += 5) {
                 const radian = angle * Math.PI / 180;
                 const lat = pivot.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
                 const lng = pivot.center.lng + (tower.data.distance / (111000 * Math.cos(pivot.center.lat * Math.PI / 180))) * Math.cos(radian);
