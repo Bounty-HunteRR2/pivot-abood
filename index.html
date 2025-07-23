@@ -48,6 +48,25 @@
                     <div id="pivotInfo" class="pivot-info">
                         <p class="info-placeholder">Select a pivot to view details</p>
                     </div>
+                    
+                    <!-- Dynamic Size Adjustment -->
+                    <div id="sizeAdjustment" class="size-adjustment" style="display: none;">
+                        <h4>Adjust Size</h4>
+                        <div class="size-inputs">
+                            <label>
+                                Radius (m):
+                                <input type="number" id="radiusInput" min="50" max="1000" step="1">
+                            </label>
+                            <label>
+                                Diameter (m):
+                                <input type="number" id="diameterInput" min="100" max="2000" step="1">
+                            </label>
+                            <label>
+                                Area (ha):
+                                <input type="number" id="areaInput" min="0.5" max="300" step="0.1">
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="tower-section" style="display: none;">

@@ -146,6 +146,41 @@ body {
     min-height: 100px;
 }
 
+/* Size Adjustment */
+.size-adjustment {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #ecf0f1;
+    border-radius: 4px;
+}
+
+.size-adjustment h4 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: #2c3e50;
+}
+
+.size-inputs label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.size-inputs input {
+    width: 100%;
+    padding: 0.4rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.size-inputs input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
 .info-placeholder {
     color: #7f8c8d;
     text-align: center;
@@ -217,20 +252,21 @@ body {
 
 /* Circle and Semi-circle overlays */
 .pivot-circle {
-    fill: rgba(52, 152, 219, 0.2);
-    stroke: #3498db;
+    fill: rgba(39, 174, 96, 0.3); /* Green grass color */
+    stroke: #27ae60;
     stroke-width: 2;
     cursor: pointer;
 }
 
 .pivot-circle:hover {
-    fill: rgba(52, 152, 219, 0.3);
+    fill: rgba(39, 174, 96, 0.4);
     stroke-width: 3;
 }
 
 .pivot-circle.selected {
     stroke: #e74c3c;
     stroke-width: 3;
+    fill: rgba(39, 174, 96, 0.35);
 }
 
 .pivot-label {
@@ -291,7 +327,7 @@ body {
 
 /* Tower circles on map */
 .tower-circle {
-    stroke-dasharray: 5, 5;
+    /* Removed dashed lines - now solid */
 }
 
 /* Pivot center marker */

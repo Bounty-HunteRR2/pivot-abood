@@ -43,6 +43,9 @@ function initializeEventHandlers() {
     // Specification form
     document.getElementById('specForm').addEventListener('submit', saveSpecifications);
     
+    // Dynamic size adjustment
+    initializeSizeAdjustment();
+    
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         // ESC to cancel drawing mode
@@ -137,3 +140,133 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Initialize dynamic size adjustment
+function initializeSizeAdjustment() {
+    const radiusInput = document.getElementById('radiusInput');
+    const diameterInput = document.getElementById('diameterInput');
+    const areaInput = document.getElementById('areaInput');
+    
+    // Radius input handler
+    radiusInput.addEventListener('input', (e) => {
+        if (!selectedPivot) return;
+        
+        const radius = parseFloat(e.target.value);
+        if (!isNaN(radius) && radius >= 50) {
+            updatePivotSize(selectedPivot, radius);
+            
+            // Update other inputs
+            diameterInput.value = (radius * 2).toFixed(0);
+            const area = (Math.PI * radius * radius) / 10000;
+            areaInput.value = area.toFixed(2);
+        }
+    });
+    
+    // Diameter input handler
+    diameterInput.addEventListener('input', (e) => {
+        if (!selectedPivot) return;
+        
+        const diameter = parseFloat(e.target.value);
+        if (!isNaN(diameter) && diameter >= 100) {
+            const radius = diameter / 2;
+            updatePivotSize(selectedPivot, radius);
+            
+            // Update other inputs
+            radiusInput.value = radius.toFixed(0);
+            const area = (Math.PI * radius * radius) / 10000;
+            areaInput.value = area.toFixed(2);
+        }
+    });
+    
+    // Area input handler
+    areaInput.addEventListener('input', (e) => {
+        if (!selectedPivot) return;
+        
+        const area = parseFloat(e.target.value);
+        if (!isNaN(area) && area >= 0.5) {
+            const radius = Math.sqrt((area * 10000) / Math.PI);
+            updatePivotSize(selectedPivot, radius);
+            
+            // Update other inputs
+            radiusInput.value = radius.toFixed(0);
+            diameterInput.value = (radius * 2).toFixed(0);
+        }
+    });
+}
+
+// Update pivot size
+function updatePivotSize(pivotData, newRadius) {
+    pivotData.radius = newRadius;
+    
+    if (pivotData.type === 'circle') {
+        pivotData.circle.setRadius(newRadius);
+    } else {
+        // Recreate semi-circle with new radius
+        updateSemiCircle(pivotData.circle, pivotData.center, newRadius);
+    }
+    
+    // Update handles
+    updateHandlePositions(pivotData);
+    
+    // Update towers if present
+    if (pivotData.towers) {
+        const towerCount = pivotData.towerCount;
+        const spacing = newRadius / towerCount;
+        
+        pivotData.towers.forEach((tower, index) => {
+            const newDistance = (index + 1) * spacing;
+            tower.data.distance = newDistance;
+            tower.data.spacing = spacing;
+            
+            if (pivotData.type === 'circle') {
+                tower.circle.setRadius(newDistance);
+            } else {
+                // Recreate semi-circle tower arc
+                const points = [];
+                for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += 2) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivotData.center.lat + (newDistance / 111000) * Math.sin(radian);
+                    const lng = pivotData.center.lng + (newDistance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    points.push([lat, lng]);
+                }
+                tower.circle.setLatLngs(points);
+            }
+            
+            // Update label
+            const labelDistance = index === 0 ? newDistance / 2 : newDistance - (spacing / 2);
+            const labelAngle = pivotData.type === 'circle' ? 90 : (pivotData.startAngle + pivotData.endAngle) / 2;
+            const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, labelAngle);
+            tower.label.setLatLng(labelPos);
+            
+            // Update label text
+            const labelHtml = `<div class="tower-distance-label">${spacing.toFixed(1)}m</div>`;
+            tower.label.setIcon(L.divIcon({
+                html: labelHtml,
+                className: 'tower-distance-icon',
+                iconSize: [60, 20],
+                iconAnchor: [30, 10]
+            }));
+        });
+    }
+    
+    // Update calculations and display
+    updatePivotCalculations(pivotData);
+    updatePivotInfo(pivotData);
+}
+
+// Show size adjustment controls
+window.showSizeAdjustment = function(pivotData) {
+    const sizeAdjustment = document.getElementById('sizeAdjustment');
+    
+    if (pivotData) {
+        sizeAdjustment.style.display = 'block';
+        
+        // Set current values
+        document.getElementById('radiusInput').value = pivotData.radius.toFixed(0);
+        document.getElementById('diameterInput').value = (pivotData.radius * 2).toFixed(0);
+        const area = (Math.PI * pivotData.radius * pivotData.radius) / 10000;
+        document.getElementById('areaInput').value = area.toFixed(2);
+    } else {
+        sizeAdjustment.style.display = 'none';
+    }
+};

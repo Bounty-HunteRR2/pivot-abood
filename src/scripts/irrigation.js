@@ -9,11 +9,11 @@ function createCirclePivot(latlng, radius = 400) {
     // Create circle
     const circle = L.circle(latlng, {
         radius: radius,
-        color: '#3498db',
+        color: '#27ae60',
         weight: 2,
         opacity: 0.8,
-        fillColor: '#3498db',
-        fillOpacity: 0.2,
+        fillColor: '#27ae60',
+        fillOpacity: 0.3,
         className: 'pivot-circle'
     });
     
@@ -103,11 +103,11 @@ function createSemiCirclePivot(latlng, radius = 400, startAngle = 0, endAngle = 
     points.push(latlng);
     
     const semiCircle = L.polygon(points, {
-        color: '#3498db',
+        color: '#27ae60',
         weight: 2,
         opacity: 0.8,
-        fillColor: '#3498db',
-        fillOpacity: 0.2,
+        fillColor: '#27ae60',
+        fillOpacity: 0.3,
         className: 'pivot-circle'
     });
     
@@ -212,11 +212,12 @@ function createResizeHandles(center, radius, type, shape, startAngle = 0, endAng
             const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
             
             const handle = L.circleMarker([lat, lng], {
-                radius: 6,
+                radius: 8,
                 color: '#fff',
                 fillColor: index === 1 ? '#3498db' : '#e74c3c', // Different color for rotation handles
                 fillOpacity: 1,
-                weight: 2
+                weight: 2,
+                className: 'resize-handle'
             });
             
             // Make handle draggable
@@ -402,7 +403,28 @@ function updateSemiCircleRotation(pivotData) {
     pivotData.circle.setLatLngs(points);
     
     // Update handles
-    updateHandlePositions(pivotData.center, pivotData.radius, 'semicircle', pivotData.startAngle, pivotData.endAngle);
+    updateHandlePositions(pivotData);
+    
+    // Update towers if present
+    if (pivotData.towers) {
+        pivotData.towers.forEach((tower, index) => {
+            // Recreate tower arc with new angles
+            const towerPoints = [];
+            for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += 2) {
+                const radian = angle * Math.PI / 180;
+                const lat = pivotData.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                const lng = pivotData.center.lng + (tower.data.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                towerPoints.push([lat, lng]);
+            }
+            tower.circle.setLatLngs(towerPoints);
+            
+            // Update label position
+            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
+            const labelDistance = index === 0 ? tower.data.distance / 2 : tower.data.distance - (tower.data.spacing / 2);
+            const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, midAngle);
+            tower.label.setLatLng(labelPos);
+        });
+    }
 }
 
 // Update handle positions
@@ -531,14 +553,37 @@ function updateTowerPositions(pivotData) {
     if (!pivotData.towers) return;
     
     pivotData.towers.forEach((tower, index) => {
-        // Update tower circle center
-        tower.circle.setLatLng(pivotData.center);
+        if (pivotData.type === 'circle') {
+            // Update full circle tower
+            tower.circle.setLatLng(pivotData.center);
+        } else if (pivotData.type === 'semicircle') {
+            // Recreate semi-circle tower arc with new position
+            const points = [];
+            const angleStep = 2;
+            
+            for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
+                const radian = angle * Math.PI / 180;
+                const lat = pivotData.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                const lng = pivotData.center.lng + (tower.data.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                points.push([lat, lng]);
+            }
+            
+            tower.circle.setLatLngs(points);
+        }
         
-        // Update tower label position - place between towers
-        const labelDistance = index === 0 ? tower.data.distance / 2 : tower.data.distance - (tower.data.spacing / 2);
-        const labelAngle = 90; // Place at top for visibility
-        const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, labelAngle);
-        tower.label.setLatLng(labelPos);
+        // Update tower label position
+        if (pivotData.type === 'circle') {
+            const labelDistance = index === 0 ? tower.data.distance / 2 : tower.data.distance - (tower.data.spacing / 2);
+            const labelAngle = 90; // Place at top for visibility
+            const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, labelAngle);
+            tower.label.setLatLng(labelPos);
+        } else {
+            // For semi-circles, place label at middle of arc
+            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
+            const labelDistance = index === 0 ? tower.data.distance / 2 : tower.data.distance - (tower.data.spacing / 2);
+            const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, midAngle);
+            tower.label.setLatLng(labelPos);
+        }
     });
 }
 

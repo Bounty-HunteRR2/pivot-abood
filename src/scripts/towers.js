@@ -44,11 +44,11 @@ function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistanc
             // Create full tower circle
             const towerCircle = L.circle(pivotData.center, {
                 radius: tower.distance,
-                color: '#7f8c8d',
-                weight: 1,
-                opacity: 0.6,
-                fillColor: 'transparent',
-                fillOpacity: 0,
+                color: '#27ae60',
+                weight: 1.5,
+                opacity: 0.8,
+                fillColor: '#27ae60',
+                fillOpacity: 0.15,
                 className: 'tower-circle',
                 interactive: false
             });
@@ -94,9 +94,9 @@ function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistanc
             }
             
             const towerArc = L.polyline(points, {
-                color: '#7f8c8d',
-                weight: 1,
-                opacity: 0.6,
+                color: '#27ae60',
+                weight: 1.5,
+                opacity: 0.8,
                 className: 'tower-circle',
                 interactive: false
             });

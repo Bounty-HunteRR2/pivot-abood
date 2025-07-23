@@ -127,10 +127,12 @@ function selectPivot(pivotData) {
         updatePivotInfo(selectedPivot);
         showSpecificationForm(selectedPivot);
         showTowerConfiguration(selectedPivot);
+        showSizeAdjustment(selectedPivot);
     } else {
         updatePivotInfo(null);
         hideSpecificationForm();
         showTowerConfiguration(null);
+        showSizeAdjustment(null);
     }
 }
 
