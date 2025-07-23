@@ -86,7 +86,7 @@ function createSemiCirclePivot(latlng, radius = 400, startAngle = 0, endAngle = 
     
     // Create semi-circle polygon
     const points = [];
-    const angleStep = 2; // degrees for smoother curves
+    const angleStep = 1; // 1 degree for high quality smooth curves
     
     // Add center point
     points.push(latlng);
@@ -270,8 +270,9 @@ function startResizing(e, shape, center, handleAngle, type) {
                 tower.data.spacing = spacing;
                 tower.circle.setRadius(newDistance);
                 
-                // Update label
-                const labelPos = calculatePositionAtAngle(pivotData.center, newDistance, 45);
+                // Update label position - place between towers
+                const labelDistance = index === 0 ? newDistance / 2 : newDistance - (spacing / 2);
+                const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, 90);
                 tower.label.setLatLng(labelPos);
                 
                 // Update label text
@@ -359,12 +360,21 @@ function updateSemiCircle(shape, center, radius) {
     if (!pivotData) return;
     
     const points = [];
-    const angleStep = 2; // Higher resolution for smoother curves
+    const angleStep = 1; // Even higher resolution for smoother curves
     
     points.push(center);
     
+    // Ensure we include the exact end angle
     for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
         const radian = angle * Math.PI / 180;
+        const lat = center.lat + (radius / 111000) * Math.sin(radian);
+        const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
+        points.push([lat, lng]);
+    }
+    
+    // Add the final point if not already included
+    if ((pivotData.endAngle - pivotData.startAngle) % angleStep !== 0) {
+        const radian = pivotData.endAngle * Math.PI / 180;
         const lat = center.lat + (radius / 111000) * Math.sin(radian);
         const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
         points.push([lat, lng]);
@@ -377,7 +387,7 @@ function updateSemiCircle(shape, center, radius) {
 // Update semi-circle rotation
 function updateSemiCircleRotation(pivotData) {
     const points = [];
-    const angleStep = 2; // Higher resolution for smoother curves
+    const angleStep = 1; // 1 degree for high quality smooth curves
     
     points.push(pivotData.center);
     
@@ -410,77 +420,87 @@ function updateDrawingButtons() {
 // Enable dragging for a pivot
 function enablePivotDragging(pivotData) {
     let isDragging = false;
-    let dragStartLatLng = null;
+    let currentPivot = pivotData;
     
     // Make the center marker draggable
-    pivotData.centerMarker.on('mousedown', (e) => {
+    pivotData.centerMarker.on('mousedown', function(e) {
         L.DomEvent.stopPropagation(e);
+        L.DomEvent.preventDefault(e);
+        
+        // Select the pivot first
+        selectPivot(currentPivot);
+        
         isDragging = true;
-        dragStartLatLng = e.latlng;
         map.dragging.disable();
         document.body.style.cursor = 'move';
         
         // Highlight the pivot being dragged
-        pivotData.circle.setStyle({ 
+        currentPivot.circle.setStyle({ 
             color: '#e74c3c',
             weight: 3,
             opacity: 1
         });
-    });
-    
-    map.on('mousemove', (e) => {
-        if (!isDragging || pivotData !== selectedPivot) return;
         
-        const newCenter = e.latlng;
-        
-        // Update circle position
-        pivotData.circle.setLatLng(newCenter);
-        pivotData.center = newCenter;
-        
-        // Update center marker
-        pivotData.centerMarker.setLatLng(newCenter);
-        
-        // Update label
-        pivotData.labelMarker.setLatLng(newCenter);
-        
-        // Update handles
-        updateHandlePositions(pivotData);
-        
-        // Update towers if present
-        if (pivotData.towers) {
-            updateTowerPositions(pivotData);
-        }
-        
-        // Update semi-circle if needed
-        if (pivotData.type === 'semicircle') {
-            updateSemiCirclePosition(pivotData, newCenter);
-        }
-    });
-    
-    map.on('mouseup', () => {
-        if (isDragging) {
-            isDragging = false;
-            map.dragging.enable();
-            document.body.style.cursor = '';
+        // Bind drag events
+        const onMouseMove = function(e) {
+            if (!isDragging) return;
             
-            // Restore normal style
-            if (selectedPivot === pivotData) {
-                pivotData.circle.setStyle({ 
+            const newCenter = e.latlng;
+            
+            // Update circle position
+            if (currentPivot.type === 'circle') {
+                currentPivot.circle.setLatLng(newCenter);
+            } else {
+                updateSemiCirclePosition(currentPivot, newCenter);
+            }
+            currentPivot.center = newCenter;
+            
+            // Update center marker
+            currentPivot.centerMarker.setLatLng(newCenter);
+            
+            // Update label
+            currentPivot.labelMarker.setLatLng(newCenter);
+            
+            // Update handles
+            updateHandlePositions(currentPivot);
+            
+            // Update towers if present
+            if (currentPivot.towers) {
+                updateTowerPositions(currentPivot);
+            }
+        };
+        
+        const onMouseUp = function() {
+            if (isDragging) {
+                isDragging = false;
+                map.dragging.enable();
+                document.body.style.cursor = '';
+                
+                // Restore normal style
+                currentPivot.circle.setStyle({ 
                     color: '#e74c3c',
                     weight: 2,
                     opacity: 0.8
                 });
-            } else {
-                pivotData.circle.setStyle({ 
-                    color: '#3498db',
-                    weight: 2,
-                    opacity: 0.8
-                });
+                
+                // Update calculations
+                updatePivotCalculations(currentPivot);
+                
+                // Remove temporary event listeners
+                map.off('mousemove', onMouseMove);
+                map.off('mouseup', onMouseUp);
             }
-            
-            // Update calculations
-            updatePivotCalculations(pivotData);
-        }
+        };
+        
+        // Attach temporary event listeners
+        map.on('mousemove', onMouseMove);
+        map.on('mouseup', onMouseUp);
+    });
+    
+    // Also make the circle itself draggable
+    pivotData.circle.on('mousedown', function(e) {
+        if (e.originalEvent.target === pivotData.centerMarker._path) return;
+        pivotData.centerMarker.fire('mousedown', e);
     });
 }
 
@@ -510,13 +530,14 @@ function updateHandlePositions(pivotData) {
 function updateTowerPositions(pivotData) {
     if (!pivotData.towers) return;
     
-    pivotData.towers.forEach(tower => {
+    pivotData.towers.forEach((tower, index) => {
         // Update tower circle center
         tower.circle.setLatLng(pivotData.center);
         
-        // Update tower label position
-        const angle = 45; // Display labels at 45 degrees
-        const labelPos = calculatePositionAtAngle(pivotData.center, tower.data.distance, angle);
+        // Update tower label position - place between towers
+        const labelDistance = index === 0 ? tower.data.distance / 2 : tower.data.distance - (tower.data.spacing / 2);
+        const labelAngle = 90; // Place at top for visibility
+        const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, labelAngle);
         tower.label.setLatLng(labelPos);
     });
 }
@@ -524,7 +545,7 @@ function updateTowerPositions(pivotData) {
 // Update semi-circle position
 function updateSemiCirclePosition(pivotData, newCenter) {
     const points = [];
-    const angleStep = 2; // degrees for smoother curves
+    const angleStep = 1; // 1 degree for high quality smooth curves
     
     points.push(newCenter);
     

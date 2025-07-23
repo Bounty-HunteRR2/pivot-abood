@@ -53,9 +53,10 @@ function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistanc
                 interactive: false
             });
             
-            // Create distance label
-            const angle = 45; // Display labels at 45 degrees for visibility
-            const labelPos = calculatePositionAtAngle(pivotData.center, tower.distance, angle);
+            // Create distance label positioned between this tower and the previous one
+            const labelDistance = index === 0 ? tower.distance / 2 : tower.distance - (tower.spacing / 2);
+            const labelAngle = 90; // Place at 90 degrees (top) for better visibility
+            const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, labelAngle);
             
             const distanceLabel = L.divIcon({
                 html: `<div class="tower-distance-label">${tower.spacing.toFixed(1)}m</div>`,
