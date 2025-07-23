@@ -22,6 +22,7 @@
             <div class="header-controls">
                 <button id="importBtn" class="btn btn-primary">Import Land Polygon</button>
                 <button id="exportBtn" class="btn btn-success" disabled>Export to KML</button>
+                <button id="exportPdfBtn" class="btn btn-warning" disabled>Export to PDF</button>
             </div>
         </header>
 
@@ -46,6 +47,28 @@
                     <h3>Selected Pivot Info</h3>
                     <div id="pivotInfo" class="pivot-info">
                         <p class="info-placeholder">Select a pivot to view details</p>
+                    </div>
+                </div>
+
+                <div class="tower-section" style="display: none;">
+                    <h3>Tower Configuration</h3>
+                    <div class="tower-controls">
+                        <label>
+                            Number of Towers:
+                            <input type="number" id="towerCount" min="1" max="20" value="5" placeholder="5">
+                        </label>
+                        <label>
+                            Spacing Type:
+                            <select id="spacingType">
+                                <option value="equal">Equal Spacing</option>
+                                <option value="custom">Custom Spacing</option>
+                            </select>
+                        </label>
+                        <div id="customSpacingInputs" style="display: none;">
+                            <!-- Dynamic inputs will be added here -->
+                        </div>
+                        <button id="applyTowersBtn" class="btn btn-primary">Apply Towers</button>
+                        <button id="removeTowersBtn" class="btn btn-danger">Remove Towers</button>
                     </div>
                 </div>
 
@@ -85,10 +108,18 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+    
+    <!-- PDF Export Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Application Scripts -->
     <script src="src/scripts/map.js"></script>
     <script src="src/scripts/irrigation.js"></script>
+    <script src="src/scripts/towers.js"></script>
     <script src="src/scripts/calculations.js"></script>
     <script src="src/scripts/export.js"></script>
+    <script src="src/scripts/pdf-export.js"></script>
     <script src="src/scripts/app.js"></script>
 </body>
 </html>

@@ -82,8 +82,9 @@ function importLandPolygon(file) {
             // Fit map to polygon bounds
             map.fitBounds(landPolygon.getBounds());
             
-            // Enable export button
+            // Enable export buttons
             document.getElementById('exportBtn').disabled = false;
+            document.getElementById('exportPdfBtn').disabled = false;
             
             showNotification('Land polygon imported successfully', 'success');
             
@@ -125,9 +126,11 @@ function selectPivot(pivotData) {
         selectedPivot.circle.setStyle({ color: '#e74c3c' });
         updatePivotInfo(selectedPivot);
         showSpecificationForm(selectedPivot);
+        showTowerConfiguration(selectedPivot);
     } else {
         updatePivotInfo(null);
         hideSpecificationForm();
+        showTowerConfiguration(null);
     }
 }
 

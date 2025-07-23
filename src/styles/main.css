@@ -262,6 +262,81 @@ body {
     color: #7f8c8d;
 }
 
+/* Tower Section */
+.tower-section {
+    margin-bottom: 2rem;
+}
+
+.tower-controls label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.tower-controls input,
+.tower-controls select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.tower-controls button {
+    margin-top: 0.5rem;
+    margin-right: 0.5rem;
+}
+
+/* Tower circles on map */
+.tower-circle {
+    stroke-dasharray: 5, 5;
+}
+
+/* Tower distance labels */
+.tower-distance-label {
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #2c3e50;
+    border: 1px solid #7f8c8d;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Warning button style */
+.btn-warning {
+    background-color: #f39c12;
+    color: white;
+}
+
+.btn-warning:hover {
+    background-color: #e67e22;
+}
+
+/* Custom spacing inputs */
+#customSpacingInputs {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+#customSpacingInputs label {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+#customSpacingInputs input {
+    width: 100%;
+    padding: 0.4rem;
+    margin-top: 0.2rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar {

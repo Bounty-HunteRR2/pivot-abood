@@ -63,6 +63,14 @@ function generateKMLStyles() {
     styles += '      </LabelStyle>\n';
     styles += '    </Style>\n';
     
+    // Tower style
+    styles += '    <Style id="towerStyle">\n';
+    styles += '      <LineStyle>\n';
+    styles += '        <color>ff8d7f8c</color>\n'; // Gray color with transparency
+    styles += '        <width>1</width>\n';
+    styles += '      </LineStyle>\n';
+    styles += '    </Style>\n';
+    
     return styles;
 }
 
@@ -118,6 +126,15 @@ function generatePivotKML(pivot) {
     }
     if (pivot.specifications.notes) {
         kml += `        Notes: ${pivot.specifications.notes}<br>\n`;
+    }
+    if (pivot.towers && pivot.towers.length > 0) {
+        kml += `        Towers: ${pivot.towerCount}<br>\n`;
+        kml += '        Tower Distances: ';
+        pivot.towers.forEach((tower, index) => {
+            if (index > 0) kml += ', ';
+            kml += `${tower.data.spacing.toFixed(1)}m`;
+        });
+        kml += '<br>\n';
     }
     kml += '      ]]></description>\n';
     
@@ -177,6 +194,29 @@ function generatePivotKML(pivot) {
     kml += `        <coordinates>${pivot.center.lng},${pivot.center.lat},0</coordinates>\n`;
     kml += '      </Point>\n';
     kml += '    </Placemark>\n';
+    
+    // Add tower circles if present
+    if (pivot.towers && pivot.towers.length > 0 && pivot.type === 'circle') {
+        pivot.towers.forEach(tower => {
+            kml += '    <Placemark>\n';
+            kml += `      <name>Tower ${tower.data.number}</name>\n`;
+            kml += '      <styleUrl>#towerStyle</styleUrl>\n';
+            kml += '      <LineString>\n';
+            kml += '        <coordinates>\n';
+            
+            // Generate tower circle points
+            for (let angle = 0; angle <= 360; angle += 30) {
+                const radian = angle * Math.PI / 180;
+                const lat = pivot.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                const lng = pivot.center.lng + (tower.data.distance / (111000 * Math.cos(pivot.center.lat * Math.PI / 180))) * Math.cos(radian);
+                kml += `          ${lng},${lat},0\n`;
+            }
+            
+            kml += '        </coordinates>\n';
+            kml += '      </LineString>\n';
+            kml += '    </Placemark>\n';
+        });
+    }
     
     return kml;
 }
