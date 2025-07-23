@@ -160,6 +160,20 @@ body {
     color: #2c3e50;
 }
 
+.resize-mode-btn {
+    width: 100%;
+    margin-bottom: 1rem;
+    justify-content: center;
+}
+
+.resize-mode-btn.active {
+    background-color: #e74c3c;
+}
+
+.resize-mode-btn.active:hover {
+    background-color: #c0392b;
+}
+
 .size-inputs label {
     display: block;
     margin-bottom: 0.5rem;
@@ -369,6 +383,21 @@ body {
     left: 50%;
     transform: translateX(-50%);
     background-color: #e74c3c;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: bold;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Resize mode indicator */
+.resize-indicator {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #3498db;
     color: white;
     padding: 0.5rem 1rem;
     border-radius: 4px;

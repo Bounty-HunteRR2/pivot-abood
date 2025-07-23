@@ -353,6 +353,10 @@ function calculateMiddleAngle(startAngle, endAngle) {
 let rotationMode = false;
 let rotatingPivot = null;
 
+// Enable mouse resize for any pivot
+let resizeMode = false;
+let resizingPivot = null;
+
 window.enableSemiCircleRotation = function(pivotData) {
     if (!pivotData || pivotData.type !== 'semicircle') return;
     
@@ -465,6 +469,181 @@ function handleRotationClick(e) {
     
     // Update button state
     const btn = document.getElementById('rotationModeBtn');
+    if (btn) {
+        btn.classList.remove('active');
+    }
+}
+
+// Enable mouse resize for pivots
+window.enableMouseResize = function(pivotData) {
+    if (!pivotData) return;
+    
+    resizeMode = true;
+    resizingPivot = pivotData;
+    
+    // Change cursor
+    document.getElementById('map').style.cursor = 'crosshair';
+    
+    // Add resize indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'resize-indicator';
+    indicator.id = 'resizeIndicator';
+    indicator.innerHTML = 'Resize Mode - Move mouse to adjust size, click to finish';
+    document.querySelector('.map-container').appendChild(indicator);
+    
+    // Highlight the pivot
+    pivotData.circle.setStyle({
+        color: '#e74c3c',
+        weight: 3,
+        opacity: 1
+    });
+    
+    // Add mouse move handler
+    map.on('mousemove', handleResizeMouseMove);
+    map.on('click', handleResizeClick);
+    
+    // Disable map dragging during resize
+    map.dragging.disable();
+};
+
+window.disableMouseResize = function() {
+    if (!resizeMode || !resizingPivot) return;
+    
+    resizeMode = false;
+    
+    // Restore cursor
+    document.getElementById('map').style.cursor = '';
+    
+    // Remove resize indicator
+    const indicator = document.getElementById('resizeIndicator');
+    if (indicator) {
+        indicator.remove();
+    }
+    
+    // Restore pivot style
+    if (resizingPivot) {
+        resizingPivot.circle.setStyle({
+            color: selectedPivot === resizingPivot ? '#e74c3c' : '#27ae60',
+            weight: 2,
+            opacity: 0.8
+        });
+    }
+    
+    // Remove handlers
+    map.off('mousemove', handleResizeMouseMove);
+    map.off('click', handleResizeClick);
+    
+    // Re-enable map dragging
+    map.dragging.enable();
+    
+    resizingPivot = null;
+};
+
+function handleResizeMouseMove(e) {
+    if (!resizeMode || !resizingPivot) return;
+    
+    // Calculate new radius based on distance from center to mouse
+    const newRadius = calculateDistance(resizingPivot.center, e.latlng);
+    
+    // Limit radius
+    const radius = Math.max(50, Math.min(1000, newRadius));
+    
+    // Update pivot radius
+    resizingPivot.radius = radius;
+    
+    // Update visual
+    if (resizingPivot.type === 'circle') {
+        resizingPivot.circle.setRadius(radius);
+    } else {
+        updateSemiCircle(resizingPivot.circle, resizingPivot.center, radius);
+    }
+    
+    // Update handles
+    updateHandlePositions(resizingPivot);
+    
+    // Update towers if present
+    if (resizingPivot.towers) {
+        const towerCount = resizingPivot.towerCount;
+        const spacing = radius / towerCount;
+        
+        resizingPivot.towers.forEach((tower, index) => {
+            const newDistance = (index + 1) * spacing;
+            tower.data.distance = newDistance;
+            tower.data.spacing = spacing;
+            
+            if (resizingPivot.type === 'circle') {
+                tower.circle.setRadius(newDistance);
+            } else {
+                // Update semi-circle tower arc
+                const towerPoints = [];
+                if (resizingPivot.endAngle < resizingPivot.startAngle) {
+                    // Boundary crossing
+                    for (let angle = resizingPivot.startAngle; angle <= 360; angle += 2) {
+                        const radian = angle * Math.PI / 180;
+                        const lat = resizingPivot.center.lat + (newDistance / 111000) * Math.sin(radian);
+                        const lng = resizingPivot.center.lng + (newDistance / (111000 * Math.cos(resizingPivot.center.lat * Math.PI / 180))) * Math.cos(radian);
+                        towerPoints.push([lat, lng]);
+                    }
+                    for (let angle = 0; angle <= resizingPivot.endAngle; angle += 2) {
+                        const radian = angle * Math.PI / 180;
+                        const lat = resizingPivot.center.lat + (newDistance / 111000) * Math.sin(radian);
+                        const lng = resizingPivot.center.lng + (newDistance / (111000 * Math.cos(resizingPivot.center.lat * Math.PI / 180))) * Math.cos(radian);
+                        towerPoints.push([lat, lng]);
+                    }
+                } else {
+                    // Normal case
+                    for (let angle = resizingPivot.startAngle; angle <= resizingPivot.endAngle; angle += 2) {
+                        const radian = angle * Math.PI / 180;
+                        const lat = resizingPivot.center.lat + (newDistance / 111000) * Math.sin(radian);
+                        const lng = resizingPivot.center.lng + (newDistance / (111000 * Math.cos(resizingPivot.center.lat * Math.PI / 180))) * Math.cos(radian);
+                        towerPoints.push([lat, lng]);
+                    }
+                }
+                tower.circle.setLatLngs(towerPoints);
+            }
+            
+            // Update label position
+            if (resizingPivot.type === 'circle') {
+                const labelDistance = index === 0 ? newDistance / 2 : newDistance - (spacing / 2);
+                const labelPos = calculatePositionAtAngle(resizingPivot.center, labelDistance, 90);
+                tower.label.setLatLng(labelPos);
+            } else {
+                const midAngle = calculateMiddleAngle(resizingPivot.startAngle, resizingPivot.endAngle);
+                const labelDistance = index === 0 ? newDistance / 2 : newDistance - (spacing / 2);
+                const labelPos = calculatePositionAtAngle(resizingPivot.center, labelDistance, midAngle);
+                tower.label.setLatLng(labelPos);
+            }
+            
+            // Update label text
+            const labelHtml = `<div class="tower-distance-label">${spacing.toFixed(1)}m</div>`;
+            tower.label.setIcon(L.divIcon({
+                html: labelHtml,
+                className: 'tower-distance-icon',
+                iconSize: [60, 20],
+                iconAnchor: [30, 10]
+            }));
+        });
+    }
+    
+    // Update input fields
+    if (document.getElementById('radiusInput')) {
+        document.getElementById('radiusInput').value = radius.toFixed(0);
+        document.getElementById('diameterInput').value = (radius * 2).toFixed(0);
+        const area = (Math.PI * radius * radius) / 10000;
+        document.getElementById('areaInput').value = area.toFixed(2);
+    }
+    
+    // Update calculations and info
+    updatePivotCalculations(resizingPivot);
+    updatePivotInfo(resizingPivot);
+}
+
+function handleResizeClick(e) {
+    // Exit resize mode on click
+    window.disableMouseResize();
+    
+    // Update button state
+    const btn = document.getElementById('resizeModeBtn');
     if (btn) {
         btn.classList.remove('active');
     }

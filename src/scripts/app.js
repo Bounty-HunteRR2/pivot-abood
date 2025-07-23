@@ -195,6 +195,9 @@ function initializeSizeAdjustment() {
     
     // Initialize rotation controls
     initializeRotationControls();
+    
+    // Initialize resize controls
+    initializeResizeControls();
 }
 
 // Initialize rotation controls for semi-circles
@@ -342,6 +345,51 @@ function initializeRotationControls() {
                         btn.click();
                     }
                 }
+            }
+        }
+    });
+}
+
+// Initialize resize controls
+function initializeResizeControls() {
+    const resizeModeBtn = document.getElementById('resizeModeBtn');
+    
+    resizeModeBtn.addEventListener('click', () => {
+        if (!selectedPivot) return;
+        
+        if (resizeModeBtn.classList.contains('active')) {
+            // Disable resize mode
+            window.disableMouseResize();
+            resizeModeBtn.classList.remove('active');
+        } else {
+            // Enable resize mode
+            window.enableMouseResize(selectedPivot);
+            resizeModeBtn.classList.add('active');
+        }
+    });
+    
+    // Add to keyboard shortcuts handler
+    document.addEventListener('keydown', (e) => {
+        // S key to toggle resize mode
+        if (e.key === 's' || e.key === 'S') {
+            // Check if we're not in an input field
+            if (document.activeElement.tagName !== 'INPUT' && 
+                document.activeElement.tagName !== 'TEXTAREA') {
+                if (selectedPivot) {
+                    const btn = document.getElementById('resizeModeBtn');
+                    if (btn) {
+                        btn.click();
+                    }
+                }
+            }
+        }
+        
+        // ESC key to exit resize mode
+        if (e.key === 'Escape') {
+            window.disableMouseResize();
+            const btn = document.getElementById('resizeModeBtn');
+            if (btn) {
+                btn.classList.remove('active');
             }
         }
     });
