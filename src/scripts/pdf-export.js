@@ -1,4 +1,4 @@
-// PDF export functionality - Direct drawing approach
+// PDF export functionality - Simplified approach with basic shapes
 
 async function exportToPDF() {
     try {
@@ -81,24 +81,17 @@ async function exportToPDF() {
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
         
-        // Draw land polygon if exists
+        // Draw land polygon if exists - using simple lines
         if (landPolygon) {
             const coords = landPolygon.getLayers()[0].getLatLngs()[0];
             doc.setDrawColor(139, 69, 19); // Brown color for land boundary
             doc.setLineWidth(0.5);
             
-            // Convert coordinates to lines array for jsPDF
-            const lines = [];
+            // Draw polygon as individual lines
             for (let i = 0; i < coords.length; i++) {
-                const current = latLngToPDF(coords[i].lat, coords[i].lng);
-                const next = latLngToPDF(coords[(i + 1) % coords.length].lat, coords[(i + 1) % coords.length].lng);
-                lines.push([next.x - current.x, next.y - current.y]);
-            }
-            
-            // Draw the polygon using lines
-            if (lines.length > 0) {
-                const firstPoint = latLngToPDF(coords[0].lat, coords[0].lng);
-                doc.lines(lines, firstPoint.x, firstPoint.y, [1, 1], 'S', true);
+                const start = latLngToPDF(coords[i].lat, coords[i].lng);
+                const end = latLngToPDF(coords[(i + 1) % coords.length].lat, coords[(i + 1) % coords.length].lng);
+                doc.line(start.x, start.y, end.x, end.y);
             }
         }
         
@@ -113,60 +106,46 @@ async function exportToPDF() {
             doc.setLineWidth(0.3);
             
             if (pivot.type === 'circle') {
-                // Draw filled circle
+                // Draw filled circle - simple!
                 doc.circle(center.x, center.y, radiusInPDF, 'F');
             } else {
-                // Draw filled semi-circle
-                const startAngle = pivot.startAngle * Math.PI / 180;
-                const endAngle = pivot.endAngle * Math.PI / 180;
+                // Draw semi-circle using sectors
+                // For now, let's approximate with a filled arc
+                const startAngle = pivot.startAngle;
+                const endAngle = pivot.endAngle;
                 
-                // Draw arc with fill
+                // Draw multiple thin pie slices to fill the semi-circle
+                const slices = 50; // Number of slices
+                let currentAngle = startAngle;
+                const angleStep = calculateArcSpan(startAngle, endAngle) / slices;
+                
                 doc.setFillColor(34, 139, 34);
                 
-                // Create path for semi-circle
-                const points = [[center.x, center.y]]; // Start from center
-                
-                // Generate arc points
-                const angleStep = 2 * Math.PI / 180; // 2 degree steps
-                let currentAngle = startAngle;
-                
-                // Handle boundary crossing
-                if (pivot.endAngle < pivot.startAngle) {
-                    // First part: from start to 360
-                    while (currentAngle <= 2 * Math.PI) {
-                        const x = center.x + radiusInPDF * Math.cos(currentAngle - Math.PI/2);
-                        const y = center.y + radiusInPDF * Math.sin(currentAngle - Math.PI/2);
-                        points.push([x, y]);
-                        currentAngle += angleStep;
+                for (let i = 0; i < slices; i++) {
+                    const nextAngle = currentAngle + angleStep;
+                    const a1 = (currentAngle - 90) * Math.PI / 180;
+                    const a2 = (nextAngle - 90) * Math.PI / 180;
+                    
+                    // Draw triangle from center to arc
+                    const x1 = center.x + radiusInPDF * Math.cos(a1);
+                    const y1 = center.y + radiusInPDF * Math.sin(a1);
+                    const x2 = center.x + radiusInPDF * Math.cos(a2);
+                    const y2 = center.y + radiusInPDF * Math.sin(a2);
+                    
+                    // Use doc.triangle if available, otherwise draw lines
+                    if (typeof doc.triangle === 'function') {
+                        doc.triangle(center.x, center.y, x1, y1, x2, y2, 'F');
+                    } else {
+                        // Fallback: draw filled triangular path
+                        doc.setFillColor(34, 139, 34);
+                        // Draw three lines to form triangle
+                        doc.line(center.x, center.y, x1, y1);
+                        doc.line(x1, y1, x2, y2);
+                        doc.line(x2, y2, center.x, center.y);
                     }
-                    // Second part: from 0 to end
-                    currentAngle = 0;
-                    while (currentAngle <= endAngle) {
-                        const x = center.x + radiusInPDF * Math.cos(currentAngle - Math.PI/2);
-                        const y = center.y + radiusInPDF * Math.sin(currentAngle - Math.PI/2);
-                        points.push([x, y]);
-                        currentAngle += angleStep;
-                    }
-                } else {
-                    // Normal case
-                    while (currentAngle <= endAngle) {
-                        const x = center.x + radiusInPDF * Math.cos(currentAngle - Math.PI/2);
-                        const y = center.y + radiusInPDF * Math.sin(currentAngle - Math.PI/2);
-                        points.push([x, y]);
-                        currentAngle += angleStep;
-                    }
-                }
-                
-                // Draw the filled semi-circle using triangles
-                // jsPDF doesn't have a direct polygon fill, so we'll use triangles
-                for (let i = 1; i < points.length; i++) {
-                    doc.setFillColor(34, 139, 34);
-                    doc.triangle(
-                        points[0][0], points[0][1],  // center
-                        points[i-1][0], points[i-1][1],  // previous point
-                        points[i][0], points[i][1],  // current point
-                        'F'
-                    );
+                    
+                    currentAngle = nextAngle;
+                    if (currentAngle >= 360) currentAngle -= 360;
                 }
             }
             
@@ -174,7 +153,6 @@ async function exportToPDF() {
             if (pivot.towers && pivot.towers.length > 0) {
                 doc.setDrawColor(0, 100, 0); // Darker green for tower circles
                 doc.setLineWidth(0.2);
-                doc.setFillColor(255, 255, 255); // White fill for labels
                 
                 pivot.towers.forEach((tower, index) => {
                     const towerRadiusInPDF = (tower.data.distance / 111000) * scale;
@@ -184,11 +162,23 @@ async function exportToPDF() {
                         doc.circle(center.x, center.y, towerRadiusInPDF, 'S');
                     } else {
                         // Draw tower arc for semi-circle
-                        const startAngle = pivot.startAngle - 90; // Adjust for PDF coordinates
-                        const endAngle = pivot.endAngle - 90;
+                        // Use multiple small lines to create arc
+                        const arcPoints = 30;
+                        const startA = pivot.startAngle;
+                        const span = calculateArcSpan(pivot.startAngle, pivot.endAngle);
+                        const step = span / arcPoints;
                         
-                        // Draw arc
-                        doc.arc(center.x, center.y, towerRadiusInPDF, startAngle, endAngle, 'S');
+                        for (let i = 0; i < arcPoints; i++) {
+                            const angle1 = (startA + i * step - 90) * Math.PI / 180;
+                            const angle2 = (startA + (i + 1) * step - 90) * Math.PI / 180;
+                            
+                            const x1 = center.x + towerRadiusInPDF * Math.cos(angle1);
+                            const y1 = center.y + towerRadiusInPDF * Math.sin(angle1);
+                            const x2 = center.x + towerRadiusInPDF * Math.cos(angle2);
+                            const y2 = center.y + towerRadiusInPDF * Math.sin(angle2);
+                            
+                            doc.line(x1, y1, x2, y2);
+                        }
                     }
                     
                     // Add tower distance label
@@ -267,8 +257,9 @@ async function exportToPDF() {
                      pageWidth / 2, pageHeight - 5, { align: 'center' });
         }
         
-        // Save the PDF
-        const filename = `irrigation_plan_${new Date().toISOString().slice(0, 10)}.pdf`;
+        // Save the PDF with timestamp to avoid caching
+        const timestamp = new Date().getTime();
+        const filename = `irrigation_plan_${new Date().toISOString().slice(0, 10)}_${timestamp}.pdf`;
         doc.save(filename);
         
         showNotification('PDF exported successfully', 'success');
@@ -289,6 +280,15 @@ function calculateMiddleAngle(startAngle, endAngle) {
         let midAngle = startAngle + totalAngle / 2;
         if (midAngle >= 360) midAngle -= 360;
         return midAngle;
+    }
+}
+
+// Helper function to calculate arc span
+function calculateArcSpan(startAngle, endAngle) {
+    if (endAngle >= startAngle) {
+        return endAngle - startAngle;
+    } else {
+        return (360 - startAngle) + endAngle;
     }
 }
 
