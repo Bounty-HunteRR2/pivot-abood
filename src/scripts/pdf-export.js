@@ -24,7 +24,7 @@ async function exportToPDF() {
         
         // Include land polygon bounds
         if (landPolygon) {
-            const coords = landPolygon.getLatLngs()[0];
+            const coords = landPolygon.getLayers()[0].getLatLngs()[0];
             coords.forEach(coord => {
                 minLat = Math.min(minLat, coord.lat);
                 maxLat = Math.max(maxLat, coord.lat);
@@ -83,7 +83,7 @@ async function exportToPDF() {
         
         // Draw land polygon if exists
         if (landPolygon) {
-            const coords = landPolygon.getLatLngs()[0];
+            const coords = landPolygon.getLayers()[0].getLatLngs()[0];
             doc.setDrawColor(139, 69, 19); // Brown color for land boundary
             doc.setLineWidth(0.5);
             
