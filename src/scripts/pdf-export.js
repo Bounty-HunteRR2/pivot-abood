@@ -1,44 +1,17 @@
-// PDF export functionality
+// PDF export functionality - Clean visual design
 
 async function exportToPDF() {
     try {
         showNotification('Generating PDF...', 'info');
         
-        // Create jsPDF instance (A4 portrait for better layout)
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('portrait', 'mm', 'a4');
+        const doc = new jsPDF('landscape', 'mm', 'a4');
         
-        // Page dimensions
-        const pageWidth = 210;
-        const pageHeight = 297;
-        const margin = 20;
-        const contentWidth = pageWidth - (2 * margin);
+        // Page dimensions for landscape A4
+        const pageWidth = 297;
+        const pageHeight = 210;
         
-        // Set document properties
-        doc.setProperties({
-            title: 'Center Pivot Irrigation Plan',
-            subject: 'Irrigation System Design',
-            author: 'Center Pivot Irrigation Planning Tool',
-            keywords: 'irrigation, pivot, agriculture',
-            creator: 'Center Pivot Irrigation Planning Tool'
-        });
-        
-        // Add header with border
-        doc.setFillColor(44, 62, 80);
-        doc.rect(0, 0, pageWidth, 40, 'F');
-        
-        doc.setFontSize(24);
-        doc.setTextColor(255, 255, 255);
-        doc.text('Center Pivot Irrigation Plan', pageWidth / 2, 20, { align: 'center' });
-        
-        doc.setFontSize(12);
-        const today = new Date().toLocaleDateString();
-        doc.text(`Generated: ${today}`, pageWidth / 2, 30, { align: 'center' });
-        
-        // Reset text color
-        doc.setTextColor(0, 0, 0);
-        
-        // Hide all UI elements before capturing
+        // Hide UI elements
         const sidebar = document.querySelector('.sidebar');
         const header = document.querySelector('.header');
         const mapControls = document.querySelectorAll('.leaflet-control');
@@ -49,287 +22,170 @@ async function exportToPDF() {
         header.style.display = 'none';
         mapControls.forEach(control => control.style.display = 'none');
         
-        // Force map to full window temporarily
-        const mapContainer = document.getElementById('map');
-        const originalMapStyle = {
-            position: mapContainer.style.position,
-            top: mapContainer.style.top,
-            left: mapContainer.style.left,
-            width: mapContainer.style.width,
-            height: mapContainer.style.height,
-            zIndex: mapContainer.style.zIndex
-        };
-        
-        mapContainer.style.position = 'fixed';
-        mapContainer.style.top = '0';
-        mapContainer.style.left = '0';
-        mapContainer.style.width = '100vw';
-        mapContainer.style.height = '100vh';
-        mapContainer.style.zIndex = '9999';
-        
-        // Get the map bounds and create a clean capture
-        const bounds = map.getBounds();
+        // Store original map state
         const originalCenter = map.getCenter();
         const originalZoom = map.getZoom();
         
-        // Force map resize
-        map.invalidateSize();
-        
-        // Fit map to show all content
-        if (landPolygon) {
-            map.fitBounds(landPolygon.getBounds(), { padding: [50, 50] });
+        // Calculate bounds to include all content
+        let bounds;
+        if (landPolygon && pivotLayers.length > 0) {
+            // Include both land polygon and all pivots
+            const group = new L.featureGroup([landPolygon, ...pivotLayers.map(p => p.circle)]);
+            bounds = group.getBounds();
+        } else if (landPolygon) {
+            bounds = landPolygon.getBounds();
         } else if (pivotLayers.length > 0) {
-            // Fit to all pivots
             const group = new L.featureGroup(pivotLayers.map(p => p.circle));
-            map.fitBounds(group.getBounds(), { padding: [50, 50] });
+            bounds = group.getBounds();
+        } else {
+            // No content to export
+            showNotification('No content to export', 'error');
+            sidebar.style.display = originalSidebarDisplay;
+            header.style.display = originalHeaderDisplay;
+            mapControls.forEach(control => control.style.display = '');
+            return;
         }
         
+        // Add padding to bounds
+        const latPadding = (bounds.getNorth() - bounds.getSouth()) * 0.1;
+        const lngPadding = (bounds.getEast() - bounds.getWest()) * 0.1;
+        bounds = L.latLngBounds(
+            [bounds.getSouth() - latPadding, bounds.getWest() - lngPadding],
+            [bounds.getNorth() + latPadding, bounds.getEast() + lngPadding]
+        );
+        
+        // Fit map to bounds
+        map.fitBounds(bounds);
+        
         // Wait for map to render
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
-        // Get new dimensions after fullscreen
-        const mapRect = mapContainer.getBoundingClientRect();
-        const aspectRatio = mapRect.width / mapRect.height;
-        
+        // Capture the map
+        const mapContainer = document.getElementById('map');
         const canvas = await html2canvas(mapContainer, {
-            scale: 2,
+            scale: 3, // High quality
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
-            width: mapRect.width,
-            height: mapRect.height,
             ignoreElements: (element) => {
-                // Ignore Leaflet controls and attribution
                 return element.classList.contains('leaflet-control') || 
                        element.classList.contains('leaflet-control-container');
             }
         });
         
-        // Restore everything
+        // Restore UI elements
         sidebar.style.display = originalSidebarDisplay;
         header.style.display = originalHeaderDisplay;
         mapControls.forEach(control => control.style.display = '');
-        
-        // Restore map container styles
-        Object.keys(originalMapStyle).forEach(key => {
-            mapContainer.style[key] = originalMapStyle[key];
-        });
-        
-        // Force map resize and restore view
-        map.invalidateSize();
         map.setView(originalCenter, originalZoom);
         
-        // Create a temporary canvas to crop the map properly
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
+        // Add map image to PDF
+        const imgData = canvas.toDataURL('image/png', 1.0);
         
-        // Calculate the area to crop (remove any white space or UI elements)
-        const cropMargin = 20;
-        tempCanvas.width = canvas.width - (cropMargin * 2);
-        tempCanvas.height = canvas.height - (cropMargin * 2);
+        // Calculate dimensions to fit the page
+        const margin = 10;
+        const maxWidth = pageWidth - (2 * margin);
+        const maxHeight = pageHeight - (2 * margin);
         
-        // Draw the cropped image
-        tempCtx.fillStyle = '#ffffff';
-        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-        tempCtx.drawImage(
-            canvas,
-            cropMargin, cropMargin, tempCanvas.width, tempCanvas.height,
-            0, 0, tempCanvas.width, tempCanvas.height
-        );
+        let imgWidth = maxWidth;
+        let imgHeight = (canvas.height / canvas.width) * imgWidth;
         
-        // Calculate map dimensions to fit page
-        const croppedAspectRatio = tempCanvas.width / tempCanvas.height;
-        let imgWidth = contentWidth - 20; // Leave some margin
-        let imgHeight = imgWidth / croppedAspectRatio;
-        
-        // If image is too tall, scale based on height
-        const maxHeight = 100;
         if (imgHeight > maxHeight) {
             imgHeight = maxHeight;
-            imgWidth = imgHeight * croppedAspectRatio;
+            imgWidth = (canvas.width / canvas.height) * imgHeight;
         }
         
         // Center the image
-        const imgX = (pageWidth - imgWidth) / 2;
+        const xOffset = (pageWidth - imgWidth) / 2;
+        const yOffset = (pageHeight - imgHeight) / 2;
         
-        // Add map image with border
-        const imgData = tempCanvas.toDataURL('image/png', 0.9);
-        doc.setDrawColor(200, 200, 200);
-        doc.rect(imgX - 1, 49, imgWidth + 2, imgHeight + 2);
-        doc.addImage(imgData, 'PNG', imgX, 50, imgWidth, imgHeight);
+        // Add white background
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
         
-        // Calculate Y position for content
-        let yPosition = 50 + imgHeight + 15;
+        // Add the map image
+        doc.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
         
-        // Add specifications section with better formatting
-        if (pivotLayers.length > 0) {
-            // Section header
-            doc.setFillColor(236, 240, 241);
-            doc.rect(margin, yPosition - 5, contentWidth, 10, 'F');
-            doc.setFontSize(14);
-            doc.setFont(undefined, 'bold');
-            doc.text('Pivot Specifications', margin + 5, yPosition);
-            yPosition += 15;
+        // Add pivot information overlays
+        const scale = imgWidth / canvas.width;
+        
+        pivotLayers.forEach((pivot, index) => {
+            // Get pivot position on the map
+            const point = map.latLngToContainerPoint(pivot.center);
             
-            // Create table with autoTable-like layout
-            doc.setFontSize(9);
-            doc.setFont(undefined, 'bold');
+            // Convert to PDF coordinates
+            const pdfX = xOffset + (point.x * scale);
+            const pdfY = yOffset + (point.y * scale);
             
-            // Table headers
-            const headers = ['Pivot Name', 'Type', 'Radius', 'Area', 'Towers'];
-            const colWidths = [50, 35, 25, 25, 25];
-            const startX = margin;
+            // Prepare pivot info text
+            const info = [];
+            info.push(`R: ${pivot.radius}m`);
+            info.push(`A: ${pivot.area ? pivot.area.toFixed(1) : '0.0'} ha`);
             
-            // Header background
-            doc.setFillColor(52, 152, 219);
-            doc.rect(startX, yPosition - 5, contentWidth, 8, 'F');
-            doc.setTextColor(255, 255, 255);
-            
-            let xPos = startX + 2;
-            headers.forEach((header, i) => {
-                doc.text(header, xPos, yPosition);
-                xPos += colWidths[i];
-            });
-            
-            yPosition += 10;
-            doc.setTextColor(0, 0, 0);
-            doc.setFont(undefined, 'normal');
-            
-            // Table rows
-            pivotLayers.forEach((pivot, index) => {
-                // Check for page break
-                if (yPosition > pageHeight - 40) {
-                    doc.addPage();
-                    yPosition = margin;
-                }
-                
-                // Alternate row colors
-                if (index % 2 === 0) {
-                    doc.setFillColor(248, 249, 250);
-                    doc.rect(startX, yPosition - 5, contentWidth, 8, 'F');
-                }
-                
-                // Row data
-                xPos = startX + 2;
-                const rowData = [
-                    pivot.specifications.label,
-                    pivot.type === 'circle' ? 'Circle' : 'Semi-Circle',
-                    `${pivot.radius.toFixed(0)}m`,
-                    `${pivot.area ? pivot.area.toFixed(2) : '0.00'}ha`,
-                    pivot.towers ? pivot.towerCount.toString() : '-'
-                ];
-                
-                rowData.forEach((data, i) => {
-                    // Truncate long text
-                    const maxWidth = colWidths[i] - 4;
-                    let text = data.toString();
-                    if (doc.getTextWidth(text) > maxWidth) {
-                        while (doc.getTextWidth(text + '...') > maxWidth) {
-                            text = text.slice(0, -1);
-                        }
-                        text += '...';
-                    }
-                    doc.text(text, xPos, yPosition);
-                    xPos += colWidths[i];
-                });
-                
-                yPosition += 8;
-            });
-            
-            // Total area summary
-            yPosition += 5;
-            doc.setDrawColor(200, 200, 200);
-            doc.line(startX, yPosition, startX + contentWidth, yPosition);
-            yPosition += 8;
-            
-            const totalArea = calculateTotalArea();
-            doc.setFont(undefined, 'bold');
-            doc.setFontSize(11);
-            doc.text(`Total Irrigated Area: ${totalArea.toFixed(2)} hectares`, startX, yPosition);
-            
-            // Add flow rate and power if available
-            const totalFlow = pivotLayers.reduce((sum, p) => sum + (p.specifications.flowRate || 0), 0);
-            const totalPower = pivotLayers.reduce((sum, p) => sum + (p.specifications.power || 0), 0);
-            
-            if (totalFlow > 0 || totalPower > 0) {
-                yPosition += 8;
-                doc.setFont(undefined, 'normal');
-                doc.setFontSize(10);
-                if (totalFlow > 0) {
-                    doc.text(`Total Flow Rate: ${totalFlow.toFixed(1)} m³/h`, startX, yPosition);
-                    yPosition += 6;
-                }
-                if (totalPower > 0) {
-                    doc.text(`Total Power: ${totalPower.toFixed(1)} kW`, startX, yPosition);
-                }
+            if (pivot.specifications.flowRate > 0) {
+                info.push(`${pivot.specifications.flowRate} m³/h`);
             }
-        }
-        
-        // Add tower details on new page if needed
-        const pivotsWithTowers = pivotLayers.filter(p => p.towers && p.towers.length > 0);
-        if (pivotsWithTowers.length > 0) {
-            // Check if we need a new page
-            if (yPosition > pageHeight - 80) {
-                doc.addPage();
-                yPosition = margin;
-            } else {
-                yPosition += 20;
+            if (pivot.specifications.power > 0) {
+                info.push(`${pivot.specifications.power} kW`);
             }
             
-            // Tower section header
-            doc.setFillColor(236, 240, 241);
-            doc.rect(margin, yPosition - 5, contentWidth, 10, 'F');
-            doc.setFontSize(14);
-            doc.setFont(undefined, 'bold');
-            doc.text('Tower Configuration Details', margin + 5, yPosition);
-            yPosition += 15;
-            
+            // Calculate text box dimensions
             doc.setFontSize(10);
-            doc.setFont(undefined, 'normal');
+            const lineHeight = 4;
+            const padding = 2;
+            const textWidth = Math.max(...info.map(line => doc.getTextWidth(line))) + (2 * padding);
+            const textHeight = (info.length * lineHeight) + (2 * padding);
             
-            pivotsWithTowers.forEach(pivot => {
-                if (yPosition > pageHeight - 30) {
-                    doc.addPage();
-                    yPosition = margin;
-                }
-                
-                // Pivot name
-                doc.setFont(undefined, 'bold');
-                doc.text(`${pivot.specifications.label}:`, margin, yPosition);
-                yPosition += 6;
-                
-                // Tower details in grid format
-                doc.setFont(undefined, 'normal');
-                doc.setFontSize(9);
-                
-                let towerLine = '';
-                pivot.towers.forEach((tower, index) => {
-                    const towerInfo = `T${tower.data.number}: ${tower.data.spacing.toFixed(1)}m`;
-                    
-                    if (index % 5 === 0 && index > 0) {
-                        doc.text(towerLine, margin + 10, yPosition);
-                        yPosition += 5;
-                        towerLine = towerInfo;
-                    } else {
-                        towerLine += (index === 0 ? '' : '  |  ') + towerInfo;
-                    }
-                });
-                
-                if (towerLine) {
-                    doc.text(towerLine, margin + 10, yPosition);
-                    yPosition += 8;
-                }
+            // Position text box (offset to avoid overlapping with pivot)
+            let textX = pdfX + (pivot.radius * scale * 0.7);
+            let textY = pdfY - (textHeight / 2);
+            
+            // Adjust position to keep text within page bounds
+            if (textX + textWidth > pageWidth - margin) {
+                textX = pdfX - textWidth - (pivot.radius * scale * 0.7);
+            }
+            if (textY < margin) {
+                textY = margin;
+            }
+            if (textY + textHeight > pageHeight - margin) {
+                textY = pageHeight - margin - textHeight;
+            }
+            
+            // Draw text background
+            doc.setFillColor(255, 255, 255, 0.9);
+            doc.setDrawColor(100, 100, 100);
+            doc.roundedRect(textX, textY, textWidth, textHeight, 1, 1, 'FD');
+            
+            // Draw text
+            doc.setTextColor(50, 50, 50);
+            doc.setFontSize(9);
+            info.forEach((line, i) => {
+                doc.text(line, textX + padding, textY + padding + ((i + 1) * lineHeight));
             });
-        }
+            
+            // Add tower count if applicable
+            if (pivot.towers && pivot.towers.length > 0) {
+                doc.setFontSize(8);
+                doc.setTextColor(100, 100, 100);
+                doc.text(`${pivot.towerCount} towers`, textX + padding, textY + textHeight - 1);
+            }
+        });
         
-        // Add footer to all pages
-        const pageCount = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            doc.setFontSize(8);
-            doc.setTextColor(128, 128, 128);
-            doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-            doc.text('Center Pivot Irrigation Planning Tool', margin, pageHeight - 10);
+        // Add title and date in corner
+        doc.setFontSize(12);
+        doc.setTextColor(50, 50, 50);
+        doc.text('Center Pivot Irrigation Plan', margin, margin + 5);
+        
+        doc.setFontSize(10);
+        const today = new Date().toLocaleDateString();
+        doc.text(today, margin, margin + 10);
+        
+        // Add total area in bottom corner
+        if (pivotLayers.length > 0) {
+            const totalArea = calculateTotalArea();
+            doc.setFontSize(10);
+            doc.text(`Total Area: ${totalArea.toFixed(2)} ha (${pivotLayers.length} pivot${pivotLayers.length !== 1 ? 's' : ''})`, 
+                     margin, pageHeight - margin);
         }
         
         // Save the PDF
@@ -341,10 +197,33 @@ async function exportToPDF() {
     } catch (error) {
         console.error('Error generating PDF:', error);
         showNotification('Error generating PDF: ' + error.message, 'error');
+        
+        // Restore UI in case of error
+        document.querySelector('.sidebar').style.display = '';
+        document.querySelector('.header').style.display = '';
+        document.querySelectorAll('.leaflet-control').forEach(control => control.style.display = '');
     }
 }
 
 // Add PDF export button handler
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
+    const exportBtn = document.getElementById('exportPdfBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToPDF);
+        
+        // Enable/disable button based on content
+        const updateExportButton = () => {
+            exportBtn.disabled = pivotLayers.length === 0;
+        };
+        
+        // Initial state
+        updateExportButton();
+        
+        // Update when pivots change
+        const originalSelectPivot = window.selectPivot;
+        window.selectPivot = function(pivotData) {
+            originalSelectPivot(pivotData);
+            updateExportButton();
+        };
+    }
 });
