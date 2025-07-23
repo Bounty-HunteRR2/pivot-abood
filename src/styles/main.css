@@ -337,6 +337,14 @@ body {
     margin-top: 0.2rem;
 }
 
+/* Print/PDF styles */
+@media print {
+    .leaflet-control,
+    .leaflet-control-container {
+        display: none !important;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar {

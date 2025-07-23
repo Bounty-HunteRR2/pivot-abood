@@ -38,36 +38,87 @@ async function exportToPDF() {
         // Reset text color
         doc.setTextColor(0, 0, 0);
         
-        // Capture map image with proper aspect ratio
+        // Hide map controls before capturing
+        const mapControls = document.querySelectorAll('.leaflet-control');
+        mapControls.forEach(control => control.style.display = 'none');
+        
+        // Get the map bounds and create a clean capture
+        const bounds = map.getBounds();
+        const originalCenter = map.getCenter();
+        const originalZoom = map.getZoom();
+        
+        // Fit map to show all content
+        if (landPolygon) {
+            map.fitBounds(landPolygon.getBounds(), { padding: [50, 50] });
+        } else if (pivotLayers.length > 0) {
+            // Fit to all pivots
+            const group = new L.featureGroup(pivotLayers.map(p => p.circle));
+            map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        }
+        
+        // Wait for map to render
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Capture map image
         const mapContainer = document.getElementById('map');
         const mapRect = mapContainer.getBoundingClientRect();
         const aspectRatio = mapRect.width / mapRect.height;
         
         const canvas = await html2canvas(mapContainer, {
-            scale: 1.5,
+            scale: 2,
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
             width: mapRect.width,
-            height: mapRect.height
+            height: mapRect.height,
+            ignoreElements: (element) => {
+                // Ignore Leaflet controls and attribution
+                return element.classList.contains('leaflet-control') || 
+                       element.classList.contains('leaflet-control-container');
+            }
         });
         
+        // Restore map controls and view
+        mapControls.forEach(control => control.style.display = '');
+        map.setView(originalCenter, originalZoom);
+        
+        // Create a temporary canvas to crop the map properly
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Calculate the area to crop (remove any white space or UI elements)
+        const cropMargin = 20;
+        tempCanvas.width = canvas.width - (cropMargin * 2);
+        tempCanvas.height = canvas.height - (cropMargin * 2);
+        
+        // Draw the cropped image
+        tempCtx.fillStyle = '#ffffff';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.drawImage(
+            canvas,
+            cropMargin, cropMargin, tempCanvas.width, tempCanvas.height,
+            0, 0, tempCanvas.width, tempCanvas.height
+        );
+        
         // Calculate map dimensions to fit page
-        let imgWidth = contentWidth;
-        let imgHeight = imgWidth / aspectRatio;
+        const croppedAspectRatio = tempCanvas.width / tempCanvas.height;
+        let imgWidth = contentWidth - 20; // Leave some margin
+        let imgHeight = imgWidth / croppedAspectRatio;
         
         // If image is too tall, scale based on height
-        const maxHeight = 120;
+        const maxHeight = 100;
         if (imgHeight > maxHeight) {
             imgHeight = maxHeight;
-            imgWidth = imgHeight * aspectRatio;
+            imgWidth = imgHeight * croppedAspectRatio;
         }
         
         // Center the image
         const imgX = (pageWidth - imgWidth) / 2;
         
-        // Add map image
-        const imgData = canvas.toDataURL('image/png', 0.8);
+        // Add map image with border
+        const imgData = tempCanvas.toDataURL('image/png', 0.9);
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(imgX - 1, 49, imgWidth + 2, imgHeight + 2);
         doc.addImage(imgData, 'PNG', imgX, 50, imgWidth, imgHeight);
         
         // Calculate Y position for content
