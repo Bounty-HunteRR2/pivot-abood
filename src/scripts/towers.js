@@ -1,5 +1,21 @@
 // Tower management for irrigation pivots
 
+// Helper function to calculate middle angle for arcs that may cross 0°/360°
+function calculateMiddleAngle(startAngle, endAngle) {
+    if (endAngle >= startAngle) {
+        // Normal case
+        return (startAngle + endAngle) / 2;
+    } else {
+        // Boundary crossing case
+        const totalAngle = (360 - startAngle) + endAngle;
+        let midAngle = startAngle + totalAngle / 2;
+        if (midAngle >= 360) {
+            midAngle -= 360;
+        }
+        return midAngle;
+    }
+}
+
 // Apply towers to selected pivot
 function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistances = []) {
     if (!pivotData) {
@@ -85,12 +101,31 @@ function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistanc
             const points = [];
             const angleStep = 2;
             
-            // Add arc points
-            for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
-                const radian = angle * Math.PI / 180;
-                const lat = pivotData.center.lat + (tower.distance / 111000) * Math.sin(radian);
-                const lng = pivotData.center.lng + (tower.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
-                points.push([lat, lng]);
+            // Add arc points - handle boundary crossing
+            if (pivotData.endAngle < pivotData.startAngle) {
+                // Boundary crossing case (e.g., 270° to 90°)
+                // Draw from start to 360°
+                for (let angle = pivotData.startAngle; angle <= 360; angle += angleStep) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivotData.center.lat + (tower.distance / 111000) * Math.sin(radian);
+                    const lng = pivotData.center.lng + (tower.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    points.push([lat, lng]);
+                }
+                // Then from 0° to end
+                for (let angle = 0; angle <= pivotData.endAngle; angle += angleStep) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivotData.center.lat + (tower.distance / 111000) * Math.sin(radian);
+                    const lng = pivotData.center.lng + (tower.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    points.push([lat, lng]);
+                }
+            } else {
+                // Normal case
+                for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivotData.center.lat + (tower.distance / 111000) * Math.sin(radian);
+                    const lng = pivotData.center.lng + (tower.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    points.push([lat, lng]);
+                }
             }
             
             const towerArc = L.polyline(points, {
@@ -102,8 +137,9 @@ function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistanc
             });
             
             // Create distance label at middle of arc
-            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
-            const labelPos = calculatePositionAtAngle(pivotData.center, tower.distance, midAngle);
+            const midAngle = calculateMiddleAngle(pivotData.startAngle, pivotData.endAngle);
+            const labelDistance = index === 0 ? tower.distance / 2 : tower.distance - (tower.spacing / 2);
+            const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, midAngle);
             
             const distanceLabel = L.divIcon({
                 html: `<div class="tower-distance-label">${tower.spacing.toFixed(1)}m</div>`,

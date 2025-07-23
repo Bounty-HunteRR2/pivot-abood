@@ -192,6 +192,159 @@ function initializeSizeAdjustment() {
             diameterInput.value = (radius * 2).toFixed(0);
         }
     });
+    
+    // Initialize rotation controls
+    initializeRotationControls();
+}
+
+// Initialize rotation controls for semi-circles
+function initializeRotationControls() {
+    const startAngleInput = document.getElementById('startAngleInput');
+    const endAngleInput = document.getElementById('endAngleInput');
+    const orientationButtons = document.querySelectorAll('.orientation-btn');
+    
+    // Helper function to calculate arc span considering boundary crossing
+    function calculateArcSpan(start, end) {
+        if (end >= start) {
+            return end - start;
+        } else {
+            // Boundary crossing case (e.g., 270° to 90°)
+            return (360 - start) + end;
+        }
+    }
+    
+    // Start angle input handler
+    startAngleInput.addEventListener('input', (e) => {
+        if (!selectedPivot || selectedPivot.type !== 'semicircle') return;
+        
+        // Allow empty input for deletion
+        if (e.target.value === '') return;
+        
+        const startAngle = parseFloat(e.target.value);
+        if (!isNaN(startAngle) && startAngle >= 0 && startAngle <= 360) {
+            // Calculate arc span considering boundary crossing
+            const arcSpan = calculateArcSpan(startAngle, selectedPivot.endAngle);
+            
+            // Ensure minimum arc of 20 degrees
+            if (arcSpan >= 20 && arcSpan <= 340) {
+                selectedPivot.startAngle = startAngle;
+                updateSemiCircleRotation(selectedPivot);
+                updatePivotCalculations(selectedPivot);
+                updatePivotInfo(selectedPivot);
+            } else {
+                // Revert to previous value
+                e.target.value = selectedPivot.startAngle.toFixed(0);
+            }
+        } else if (!isNaN(startAngle)) {
+            // Invalid range, revert
+            e.target.value = selectedPivot.startAngle.toFixed(0);
+        }
+    });
+    
+    // End angle input handler
+    endAngleInput.addEventListener('input', (e) => {
+        if (!selectedPivot || selectedPivot.type !== 'semicircle') return;
+        
+        // Allow empty input for deletion
+        if (e.target.value === '') return;
+        
+        const endAngle = parseFloat(e.target.value);
+        if (!isNaN(endAngle) && endAngle >= 0 && endAngle <= 360) {
+            // Calculate arc span considering boundary crossing
+            const arcSpan = calculateArcSpan(selectedPivot.startAngle, endAngle);
+            
+            // Ensure minimum arc of 20 degrees
+            if (arcSpan >= 20 && arcSpan <= 340) {
+                selectedPivot.endAngle = endAngle;
+                updateSemiCircleRotation(selectedPivot);
+                updatePivotCalculations(selectedPivot);
+                updatePivotInfo(selectedPivot);
+            } else {
+                // Revert to previous value
+                e.target.value = selectedPivot.endAngle.toFixed(0);
+            }
+        } else if (!isNaN(endAngle)) {
+            // Invalid range, revert
+            e.target.value = selectedPivot.endAngle.toFixed(0);
+        }
+    });
+    
+    // Restore values on blur if empty
+    startAngleInput.addEventListener('blur', (e) => {
+        if (e.target.value === '' && selectedPivot && selectedPivot.type === 'semicircle') {
+            e.target.value = selectedPivot.startAngle.toFixed(0);
+        }
+    });
+    
+    endAngleInput.addEventListener('blur', (e) => {
+        if (e.target.value === '' && selectedPivot && selectedPivot.type === 'semicircle') {
+            e.target.value = selectedPivot.endAngle.toFixed(0);
+        }
+    });
+    
+    // Orientation preset buttons
+    orientationButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            if (!selectedPivot || selectedPivot.type !== 'semicircle') return;
+            
+            const startAngle = parseFloat(button.dataset.start);
+            const endAngle = parseFloat(button.dataset.end);
+            
+            selectedPivot.startAngle = startAngle;
+            selectedPivot.endAngle = endAngle;
+            
+            // Update inputs
+            startAngleInput.value = startAngle;
+            endAngleInput.value = endAngle;
+            
+            // Update the semi-circle
+            updateSemiCircleRotation(selectedPivot);
+            updatePivotCalculations(selectedPivot);
+            updatePivotInfo(selectedPivot);
+        });
+    });
+    
+    // Rotation mode button
+    const rotationModeBtn = document.getElementById('rotationModeBtn');
+    rotationModeBtn.addEventListener('click', () => {
+        if (!selectedPivot || selectedPivot.type !== 'semicircle') return;
+        
+        if (rotationModeBtn.classList.contains('active')) {
+            // Disable rotation mode
+            window.disableSemiCircleRotation();
+            rotationModeBtn.classList.remove('active');
+        } else {
+            // Enable rotation mode
+            window.enableSemiCircleRotation(selectedPivot);
+            rotationModeBtn.classList.add('active');
+        }
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // ESC key to exit rotation mode
+        if (e.key === 'Escape') {
+            window.disableSemiCircleRotation();
+            const btn = document.getElementById('rotationModeBtn');
+            if (btn) {
+                btn.classList.remove('active');
+            }
+        }
+        
+        // R key to toggle rotation mode
+        if (e.key === 'r' || e.key === 'R') {
+            // Check if we're not in an input field
+            if (document.activeElement.tagName !== 'INPUT' && 
+                document.activeElement.tagName !== 'TEXTAREA') {
+                if (selectedPivot && selectedPivot.type === 'semicircle') {
+                    const btn = document.getElementById('rotationModeBtn');
+                    if (btn) {
+                        btn.click();
+                    }
+                }
+            }
+        }
+    });
 }
 
 // Update pivot size
@@ -257,6 +410,7 @@ function updatePivotSize(pivotData, newRadius) {
 // Show size adjustment controls
 window.showSizeAdjustment = function(pivotData) {
     const sizeAdjustment = document.getElementById('sizeAdjustment');
+    const rotationControls = document.getElementById('rotationControls');
     
     if (pivotData) {
         sizeAdjustment.style.display = 'block';
@@ -266,7 +420,17 @@ window.showSizeAdjustment = function(pivotData) {
         document.getElementById('diameterInput').value = (pivotData.radius * 2).toFixed(0);
         const area = (Math.PI * pivotData.radius * pivotData.radius) / 10000;
         document.getElementById('areaInput').value = area.toFixed(2);
+        
+        // Show rotation controls for semi-circles
+        if (pivotData.type === 'semicircle') {
+            rotationControls.style.display = 'block';
+            document.getElementById('startAngleInput').value = pivotData.startAngle.toFixed(0);
+            document.getElementById('endAngleInput').value = pivotData.endAngle.toFixed(0);
+        } else {
+            rotationControls.style.display = 'none';
+        }
     } else {
         sizeAdjustment.style.display = 'none';
+        rotationControls.style.display = 'none';
     }
 };

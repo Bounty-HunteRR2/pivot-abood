@@ -195,8 +195,8 @@ function generatePivotKML(pivot) {
     kml += '      </Point>\n';
     kml += '    </Placemark>\n';
     
-    // Add tower circles if present
-    if (pivot.towers && pivot.towers.length > 0 && pivot.type === 'circle') {
+    // Add tower circles/arcs if present
+    if (pivot.towers && pivot.towers.length > 0) {
         pivot.towers.forEach(tower => {
             kml += '    <Placemark>\n';
             kml += `      <name>Tower ${tower.data.number}</name>\n`;
@@ -204,12 +204,22 @@ function generatePivotKML(pivot) {
             kml += '      <LineString>\n';
             kml += '        <coordinates>\n';
             
-            // Generate tower circle points with high resolution
-            for (let angle = 0; angle <= 360; angle += 5) {
-                const radian = angle * Math.PI / 180;
-                const lat = pivot.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
-                const lng = pivot.center.lng + (tower.data.distance / (111000 * Math.cos(pivot.center.lat * Math.PI / 180))) * Math.cos(radian);
-                kml += `          ${lng},${lat},0\n`;
+            if (pivot.type === 'circle') {
+                // Generate full circle for circle pivots
+                for (let angle = 0; angle <= 360; angle += 5) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivot.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                    const lng = pivot.center.lng + (tower.data.distance / (111000 * Math.cos(pivot.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    kml += `          ${lng},${lat},0\n`;
+                }
+            } else if (pivot.type === 'semicircle') {
+                // Generate arc for semi-circle pivots
+                for (let angle = pivot.startAngle; angle <= pivot.endAngle; angle += 2) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivot.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                    const lng = pivot.center.lng + (tower.data.distance / (111000 * Math.cos(pivot.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    kml += `          ${lng},${lat},0\n`;
+                }
             }
             
             kml += '        </coordinates>\n';

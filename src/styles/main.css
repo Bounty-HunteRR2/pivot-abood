@@ -288,6 +288,100 @@ body {
     position: absolute;
 }
 
+/* Rotation controls */
+.rotation-controls {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #ecf0f1;
+}
+
+.rotation-controls h4 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: #2c3e50;
+}
+
+.rotation-mode-btn {
+    width: 100%;
+    margin-bottom: 1rem;
+    justify-content: center;
+}
+
+.rotation-mode-btn.active {
+    background-color: #e74c3c;
+}
+
+.rotation-mode-btn.active:hover {
+    background-color: #c0392b;
+}
+
+.rotation-inputs {
+    margin-bottom: 1rem;
+}
+
+.rotation-inputs label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.rotation-inputs input {
+    width: 100%;
+    padding: 0.4rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.orientation-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.orientation-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #bdc3c7;
+}
+
+.orientation-btn:hover {
+    background-color: #bdc3c7;
+}
+
+.btn-secondary {
+    background-color: #ecf0f1;
+    color: #2c3e50;
+}
+
+.btn-secondary:hover {
+    background-color: #bdc3c7;
+}
+
+/* Rotation mode indicator */
+.rotation-indicator {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #e74c3c;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: bold;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Map cursor in rotation mode */
+.map-container.rotation-mode {
+    cursor: crosshair !important;
+}
+
 /* Loading state */
 .loading {
     position: absolute;

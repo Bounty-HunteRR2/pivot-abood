@@ -91,12 +91,31 @@ function createSemiCirclePivot(latlng, radius = 400, startAngle = 0, endAngle = 
     // Add center point
     points.push(latlng);
     
-    // Add arc points
-    for (let angle = startAngle; angle <= endAngle; angle += angleStep) {
-        const radian = angle * Math.PI / 180;
-        const lat = latlng.lat + (radius / 111000) * Math.sin(radian);
-        const lng = latlng.lng + (radius / (111000 * Math.cos(latlng.lat * Math.PI / 180))) * Math.cos(radian);
-        points.push([lat, lng]);
+    // Add arc points - handle boundary crossing
+    if (endAngle < startAngle) {
+        // Boundary crossing case (e.g., 270° to 90°)
+        // Draw from start to 360°
+        for (let angle = startAngle; angle <= 360; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = latlng.lat + (radius / 111000) * Math.sin(radian);
+            const lng = latlng.lng + (radius / (111000 * Math.cos(latlng.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+        // Then from 0° to end
+        for (let angle = 0; angle <= endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = latlng.lat + (radius / 111000) * Math.sin(radian);
+            const lng = latlng.lng + (radius / (111000 * Math.cos(latlng.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+    } else {
+        // Normal case
+        for (let angle = startAngle; angle <= endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = latlng.lat + (radius / 111000) * Math.sin(radian);
+            const lng = latlng.lng + (radius / (111000 * Math.cos(latlng.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
     }
     
     // Close the polygon back to center
@@ -203,32 +222,25 @@ function createResizeHandles(center, radius, type, shape, startAngle = 0, endAng
             handles.push(handle);
         });
     } else if (type === 'semicircle') {
-        // Create handles at start, middle, and end of arc
-        const angles = [startAngle, (startAngle + endAngle) / 2, endAngle];
+        // Create only resize handle at middle of arc
+        const midAngle = (startAngle + endAngle) / 2;
+        const radian = midAngle * Math.PI / 180;
+        const lat = center.lat + (radius / 111000) * Math.sin(radian);
+        const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
         
-        angles.forEach((angle, index) => {
-            const radian = angle * Math.PI / 180;
-            const lat = center.lat + (radius / 111000) * Math.sin(radian);
-            const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
-            
-            const handle = L.circleMarker([lat, lng], {
-                radius: 8,
-                color: '#fff',
-                fillColor: index === 1 ? '#3498db' : '#e74c3c', // Different color for rotation handles
-                fillOpacity: 1,
-                weight: 2,
-                className: 'resize-handle'
-            });
-            
-            // Make handle draggable
-            if (index === 1) {
-                handle.on('mousedown', (e) => startResizing(e, shape, center, angle, type));
-            } else {
-                handle.on('mousedown', (e) => startRotating(e, shape, center, radius, index === 0 ? 'start' : 'end'));
-            }
-            
-            handles.push(handle);
+        const handle = L.circleMarker([lat, lng], {
+            radius: 8,
+            color: '#fff',
+            fillColor: '#3498db',
+            fillOpacity: 1,
+            weight: 3,
+            className: 'resize-handle'
         });
+        
+        // Make handle draggable for resizing
+        handle.on('mousedown', (e) => startResizing(e, shape, center, midAngle, type));
+        
+        handles.push(handle);
     }
     
     return handles;
@@ -306,40 +318,6 @@ function startResizing(e, shape, center, handleAngle, type) {
     map.on('mouseup', onMouseUp);
 }
 
-// Start rotating a semi-circle
-function startRotating(e, shape, center, radius, handle) {
-    L.DomEvent.stopPropagation(e);
-    
-    const onMouseMove = (e) => {
-        const newPoint = map.mouseEventToLatLng(e);
-        const angle = calculateAngle(center, newPoint);
-        
-        // Update semi-circle rotation
-        const pivotData = pivotLayers.find(p => p.circle === shape);
-        if (pivotData) {
-            if (handle === 'start') {
-                pivotData.startAngle = angle;
-            } else {
-                pivotData.endAngle = angle;
-            }
-            updateSemiCircleRotation(pivotData);
-        }
-    };
-    
-    const onMouseUp = () => {
-        map.off('mousemove', onMouseMove);
-        map.off('mouseup', onMouseUp);
-        
-        // Update calculations
-        const pivotData = pivotLayers.find(p => p.circle === shape);
-        if (pivotData) {
-            updatePivotCalculations(pivotData);
-        }
-    };
-    
-    map.on('mousemove', onMouseMove);
-    map.on('mouseup', onMouseUp);
-}
 
 // Calculate distance between two points
 function calculateDistance(latlng1, latlng2) {
@@ -355,6 +333,143 @@ function calculateAngle(center, point) {
     return angle;
 }
 
+// Helper function to calculate middle angle for arcs that may cross 0°/360°
+function calculateMiddleAngle(startAngle, endAngle) {
+    if (endAngle >= startAngle) {
+        // Normal case
+        return (startAngle + endAngle) / 2;
+    } else {
+        // Boundary crossing case
+        const totalAngle = (360 - startAngle) + endAngle;
+        let midAngle = startAngle + totalAngle / 2;
+        if (midAngle >= 360) {
+            midAngle -= 360;
+        }
+        return midAngle;
+    }
+}
+
+// Enable mouse rotation for semi-circle
+let rotationMode = false;
+let rotatingPivot = null;
+
+window.enableSemiCircleRotation = function(pivotData) {
+    if (!pivotData || pivotData.type !== 'semicircle') return;
+    
+    rotationMode = true;
+    rotatingPivot = pivotData;
+    
+    // Change cursor
+    document.getElementById('map').style.cursor = 'crosshair';
+    
+    // Add rotation indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'rotation-indicator';
+    indicator.id = 'rotationIndicator';
+    indicator.innerHTML = 'Rotation Mode - Move mouse to rotate, click to finish';
+    document.querySelector('.map-container').appendChild(indicator);
+    
+    // Highlight the semi-circle
+    pivotData.circle.setStyle({
+        color: '#e74c3c',
+        weight: 3,
+        opacity: 1
+    });
+    
+    // Add mouse move handler
+    map.on('mousemove', handleRotationMouseMove);
+    map.on('click', handleRotationClick);
+    
+    // Disable map dragging during rotation
+    map.dragging.disable();
+};
+
+window.disableSemiCircleRotation = function() {
+    if (!rotationMode || !rotatingPivot) return;
+    
+    rotationMode = false;
+    
+    // Restore cursor
+    document.getElementById('map').style.cursor = '';
+    
+    // Remove rotation indicator
+    const indicator = document.getElementById('rotationIndicator');
+    if (indicator) {
+        indicator.remove();
+    }
+    
+    // Restore semi-circle style
+    if (rotatingPivot) {
+        rotatingPivot.circle.setStyle({
+            color: selectedPivot === rotatingPivot ? '#e74c3c' : '#27ae60',
+            weight: 2,
+            opacity: 0.8
+        });
+    }
+    
+    // Remove handlers
+    map.off('mousemove', handleRotationMouseMove);
+    map.off('click', handleRotationClick);
+    
+    // Re-enable map dragging
+    map.dragging.enable();
+    
+    rotatingPivot = null;
+};
+
+function handleRotationMouseMove(e) {
+    if (!rotationMode || !rotatingPivot) return;
+    
+    const mouseAngle = calculateAngle(rotatingPivot.center, e.latlng);
+    
+    // Calculate current span considering boundary crossing
+    let currentSpan;
+    if (rotatingPivot.endAngle >= rotatingPivot.startAngle) {
+        currentSpan = rotatingPivot.endAngle - rotatingPivot.startAngle;
+    } else {
+        // Boundary crossing case
+        currentSpan = (360 - rotatingPivot.startAngle) + rotatingPivot.endAngle;
+    }
+    
+    // Calculate new angles while maintaining the span
+    let newStartAngle = mouseAngle - currentSpan / 2;
+    let newEndAngle = mouseAngle + currentSpan / 2;
+    
+    // Normalize angles to 0-360 range
+    while (newStartAngle < 0) newStartAngle += 360;
+    while (newStartAngle >= 360) newStartAngle -= 360;
+    while (newEndAngle < 0) newEndAngle += 360;
+    while (newEndAngle >= 360) newEndAngle -= 360;
+    
+    // Update the pivot
+    rotatingPivot.startAngle = newStartAngle;
+    rotatingPivot.endAngle = newEndAngle;
+    
+    // Update visual
+    updateSemiCircleRotation(rotatingPivot);
+    
+    // Update input fields
+    if (document.getElementById('startAngleInput')) {
+        document.getElementById('startAngleInput').value = newStartAngle.toFixed(0);
+        document.getElementById('endAngleInput').value = newEndAngle.toFixed(0);
+    }
+    
+    // Update calculations
+    updatePivotCalculations(rotatingPivot);
+    updatePivotInfo(rotatingPivot);
+}
+
+function handleRotationClick(e) {
+    // Exit rotation mode on click
+    window.disableSemiCircleRotation();
+    
+    // Update button state
+    const btn = document.getElementById('rotationModeBtn');
+    if (btn) {
+        btn.classList.remove('active');
+    }
+}
+
 // Update semi-circle shape
 function updateSemiCircle(shape, center, radius) {
     const pivotData = pivotLayers.find(p => p.circle === shape);
@@ -365,20 +480,31 @@ function updateSemiCircle(shape, center, radius) {
     
     points.push(center);
     
-    // Ensure we include the exact end angle
-    for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
-        const radian = angle * Math.PI / 180;
-        const lat = center.lat + (radius / 111000) * Math.sin(radian);
-        const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
-        points.push([lat, lng]);
-    }
-    
-    // Add the final point if not already included
-    if ((pivotData.endAngle - pivotData.startAngle) % angleStep !== 0) {
-        const radian = pivotData.endAngle * Math.PI / 180;
-        const lat = center.lat + (radius / 111000) * Math.sin(radian);
-        const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
-        points.push([lat, lng]);
+    // Handle boundary crossing
+    if (pivotData.endAngle < pivotData.startAngle) {
+        // Boundary crossing case (e.g., 270° to 90°)
+        // Draw from start to 360°
+        for (let angle = pivotData.startAngle; angle <= 360; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = center.lat + (radius / 111000) * Math.sin(radian);
+            const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+        // Then from 0° to end
+        for (let angle = 0; angle <= pivotData.endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = center.lat + (radius / 111000) * Math.sin(radian);
+            const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+    } else {
+        // Normal case
+        for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = center.lat + (radius / 111000) * Math.sin(radian);
+            const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
     }
     
     points.push(center);
@@ -392,11 +518,31 @@ function updateSemiCircleRotation(pivotData) {
     
     points.push(pivotData.center);
     
-    for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
-        const radian = angle * Math.PI / 180;
-        const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
-        const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
-        points.push([lat, lng]);
+    // Handle boundary crossing
+    if (pivotData.endAngle < pivotData.startAngle) {
+        // Boundary crossing case (e.g., 270° to 90°)
+        // Draw from start to 360°
+        for (let angle = pivotData.startAngle; angle <= 360; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+        // Then from 0° to end
+        for (let angle = 0; angle <= pivotData.endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+    } else {
+        // Normal case
+        for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
     }
     
     points.push(pivotData.center);
@@ -410,16 +556,36 @@ function updateSemiCircleRotation(pivotData) {
         pivotData.towers.forEach((tower, index) => {
             // Recreate tower arc with new angles
             const towerPoints = [];
-            for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += 2) {
-                const radian = angle * Math.PI / 180;
-                const lat = pivotData.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
-                const lng = pivotData.center.lng + (tower.data.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
-                towerPoints.push([lat, lng]);
+            
+            // Handle boundary crossing
+            if (pivotData.endAngle < pivotData.startAngle) {
+                // Boundary crossing case
+                for (let angle = pivotData.startAngle; angle <= 360; angle += 2) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivotData.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                    const lng = pivotData.center.lng + (tower.data.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    towerPoints.push([lat, lng]);
+                }
+                for (let angle = 0; angle <= pivotData.endAngle; angle += 2) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivotData.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                    const lng = pivotData.center.lng + (tower.data.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    towerPoints.push([lat, lng]);
+                }
+            } else {
+                // Normal case
+                for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += 2) {
+                    const radian = angle * Math.PI / 180;
+                    const lat = pivotData.center.lat + (tower.data.distance / 111000) * Math.sin(radian);
+                    const lng = pivotData.center.lng + (tower.data.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                    towerPoints.push([lat, lng]);
+                }
             }
+            
             tower.circle.setLatLngs(towerPoints);
             
             // Update label position
-            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
+            const midAngle = calculateMiddleAngle(pivotData.startAngle, pivotData.endAngle);
             const labelDistance = index === 0 ? tower.data.distance / 2 : tower.data.distance - (tower.data.spacing / 2);
             const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, midAngle);
             tower.label.setLatLng(labelPos);
@@ -427,10 +593,26 @@ function updateSemiCircleRotation(pivotData) {
     }
 }
 
-// Update handle positions
-function updateHandlePositions(center, radius, type, startAngle, endAngle) {
-    // This would update all handle positions based on new radius/angles
-    // Implementation depends on how handles are stored and managed
+// Update handle positions when pivot is moved or resized
+function updateHandlePositions(pivotData) {
+    if (!pivotData.handles) return;
+    
+    pivotData.handles.forEach((handle, index) => {
+        if (pivotData.type === 'circle') {
+            const angle = index * 90; // 0, 90, 180, 270 degrees
+            const radian = angle * Math.PI / 180;
+            const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+            handle.setLatLng([lat, lng]);
+        } else if (pivotData.type === 'semicircle') {
+            // Only one handle at the middle of the arc
+            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
+            const radian = midAngle * Math.PI / 180;
+            const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+            handle.setLatLng([lat, lng]);
+        }
+    });
 }
 
 // Update drawing button states
@@ -538,9 +720,9 @@ function updateHandlePositions(pivotData) {
             const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
             handle.setLatLng([lat, lng]);
         } else if (pivotData.type === 'semicircle') {
-            const angles = [pivotData.startAngle, (pivotData.startAngle + pivotData.endAngle) / 2, pivotData.endAngle];
-            const angle = angles[index];
-            const radian = angle * Math.PI / 180;
+            // Only one handle at the middle of the arc
+            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
+            const radian = midAngle * Math.PI / 180;
             const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
             const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
             handle.setLatLng([lat, lng]);
@@ -579,7 +761,7 @@ function updateTowerPositions(pivotData) {
             tower.label.setLatLng(labelPos);
         } else {
             // For semi-circles, place label at middle of arc
-            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
+            const midAngle = calculateMiddleAngle(pivotData.startAngle, pivotData.endAngle);
             const labelDistance = index === 0 ? tower.data.distance / 2 : tower.data.distance - (tower.data.spacing / 2);
             const labelPos = calculatePositionAtAngle(pivotData.center, labelDistance, midAngle);
             tower.label.setLatLng(labelPos);
@@ -594,11 +776,29 @@ function updateSemiCirclePosition(pivotData, newCenter) {
     
     points.push(newCenter);
     
-    for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
-        const radian = angle * Math.PI / 180;
-        const lat = newCenter.lat + (pivotData.radius / 111000) * Math.sin(radian);
-        const lng = newCenter.lng + (pivotData.radius / (111000 * Math.cos(newCenter.lat * Math.PI / 180))) * Math.cos(radian);
-        points.push([lat, lng]);
+    // Handle boundary crossing
+    if (pivotData.endAngle < pivotData.startAngle) {
+        // Boundary crossing case
+        for (let angle = pivotData.startAngle; angle <= 360; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = newCenter.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = newCenter.lng + (pivotData.radius / (111000 * Math.cos(newCenter.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+        for (let angle = 0; angle <= pivotData.endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = newCenter.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = newCenter.lng + (pivotData.radius / (111000 * Math.cos(newCenter.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
+    } else {
+        // Normal case
+        for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
+            const radian = angle * Math.PI / 180;
+            const lat = newCenter.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = newCenter.lng + (pivotData.radius / (111000 * Math.cos(newCenter.lat * Math.PI / 180))) * Math.cos(radian);
+            points.push([lat, lng]);
+        }
     }
     
     points.push(newCenter);

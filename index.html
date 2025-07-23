@@ -66,6 +66,30 @@
                                 <input type="number" id="areaInput" min="0.5" max="300" step="0.1">
                             </label>
                         </div>
+                        
+                        <!-- Rotation controls for semi-circles -->
+                        <div id="rotationControls" class="rotation-controls" style="display: none;">
+                            <h4>Rotation</h4>
+                            <button id="rotationModeBtn" class="btn btn-primary rotation-mode-btn">
+                                <span class="btn-icon">🔄</span> Mouse Rotate
+                            </button>
+                            <div class="rotation-inputs">
+                                <label>
+                                    Start Angle (°):
+                                    <input type="number" id="startAngleInput" min="0" max="360" step="1">
+                                </label>
+                                <label>
+                                    End Angle (°):
+                                    <input type="number" id="endAngleInput" min="0" max="360" step="1">
+                                </label>
+                            </div>
+                            <div class="orientation-buttons">
+                                <button class="btn btn-secondary orientation-btn" data-start="0" data-end="180">North</button>
+                                <button class="btn btn-secondary orientation-btn" data-start="270" data-end="90">East</button>
+                                <button class="btn btn-secondary orientation-btn" data-start="180" data-end="360">South</button>
+                                <button class="btn btn-secondary orientation-btn" data-start="90" data-end="270">West</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
