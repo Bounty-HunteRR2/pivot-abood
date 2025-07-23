@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Center Pivot Irrigation Planning Tool</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Leaflet Draw CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Center Pivot Irrigation Planning Tool</h1>
+            <div class="header-controls">
+                <button id="importBtn" class="btn btn-primary">Import Land Polygon</button>
+                <button id="exportBtn" class="btn btn-success" disabled>Export to KML</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="tool-section">
+                    <h3>Drawing Tools</h3>
+                    <button id="drawCircleBtn" class="btn tool-btn">
+                        <svg width="20" height="20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                        Draw Circle Pivot
+                    </button>
+                    <button id="drawSemiCircleBtn" class="btn tool-btn">
+                        <svg width="20" height="20"><path d="M 2 10 A 8 8 0 0 1 18 10" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                        Draw Semi-Circle Pivot
+                    </button>
+                    <button id="clearAllBtn" class="btn tool-btn btn-danger">Clear All</button>
+                </div>
+
+                <div class="info-section">
+                    <h3>Selected Pivot Info</h3>
+                    <div id="pivotInfo" class="pivot-info">
+                        <p class="info-placeholder">Select a pivot to view details</p>
+                    </div>
+                </div>
+
+                <div class="specifications-section">
+                    <h3>Specifications</h3>
+                    <form id="specForm" class="spec-form" style="display: none;">
+                        <label>
+                            Label:
+                            <input type="text" id="pivotLabel" placeholder="Pivot name">
+                        </label>
+                        <label>
+                            Flow Rate (m³/h):
+                            <input type="number" id="flowRate" placeholder="0">
+                        </label>
+                        <label>
+                            Power (kW):
+                            <input type="number" id="power" placeholder="0">
+                        </label>
+                        <label>
+                            Notes:
+                            <textarea id="notes" rows="3" placeholder="Additional notes..."></textarea>
+                        </label>
+                        <button type="submit" class="btn btn-primary">Save Specifications</button>
+                    </form>
+                </div>
+            </aside>
+
+            <!-- Map Container -->
+            <div id="map" class="map-container"></div>
+        </div>
+
+        <!-- Hidden file input -->
+        <input type="file" id="fileInput" accept=".kml,.geojson,.json" style="display: none;">
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+    <script src="src/scripts/map.js"></script>
+    <script src="src/scripts/irrigation.js"></script>
+    <script src="src/scripts/calculations.js"></script>
+    <script src="src/scripts/export.js"></script>
+    <script src="src/scripts/app.js"></script>
+</body>
+</html>
