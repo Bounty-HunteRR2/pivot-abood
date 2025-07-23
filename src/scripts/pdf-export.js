@@ -117,6 +117,10 @@ async function exportToPDF() {
                 }
             } else {
                 // Draw semi-circle with gradient effect
+                // Fix angle for PDF coordinate system (Y-axis is flipped)
+                // In PDF: 0° is East, 90° is North, 180° is West, 270° is South
+                // In our app: 0° is North, 90° is East, 180° is South, 270° is West
+                // So we need to rotate by -90° and flip
                 const startAngle = pivot.startAngle;
                 const endAngle = pivot.endAngle;
                 const arcSpan = calculateArcSpan(startAngle, endAngle);
@@ -141,6 +145,7 @@ async function exportToPDF() {
                             nextAngle -= 360;
                         }
                         
+                        // Correct angle conversion for PDF coordinates
                         const a1 = (currentAngle - 90) * Math.PI / 180;
                         const a2 = (nextAngle - 90) * Math.PI / 180;
                     
@@ -209,21 +214,22 @@ async function exportToPDF() {
                     const labelX = center.x + labelRadius * Math.cos(labelAngle);
                     const labelY = center.y + labelRadius * Math.sin(labelAngle);
                     
-                    // Draw label background
+                    // Draw label with better visibility
                     const labelText = `${tower.data.spacing.toFixed(0)}m`;
-                    doc.setFontSize(6);
-                    const textWidth = doc.getTextWidth(labelText);
+                    doc.setFontSize(7);
                     
-                    doc.setFillColor(255, 255, 255);
-                    doc.rect(labelX - textWidth/2 - 1, labelY - 2.5, textWidth + 2, 5, 'F');
+                    // White outline for contrast
+                    doc.setDrawColor(255, 255, 255);
+                    doc.setLineWidth(2);
+                    doc.text(labelText, labelX, labelY, { align: 'center', renderingMode: 'stroke' });
                     
-                    // Draw label text
+                    // Green text
                     doc.setTextColor(0, 100, 0);
                     doc.text(labelText, labelX, labelY, { align: 'center' });
                 });
             }
             
-            // Add pivot information with clean design
+            // Add pivot information directly on pivot
             const info = [];
             info.push(`R: ${pivot.radius}m`);
             info.push(`A: ${pivot.area ? pivot.area.toFixed(1) : '0.0'} ha`);
@@ -235,39 +241,32 @@ async function exportToPDF() {
                 info.push(`${pivot.specifications.power} kW`);
             }
             
-            // Calculate text box dimensions
-            doc.setFontSize(9);
-            const lineHeight = 4;
-            const padding = 3;
-            const maxWidth = Math.max(...info.map(line => doc.getTextWidth(line)));
-            const boxWidth = maxWidth + (2 * padding);
-            const boxHeight = (info.length * lineHeight) + (2 * padding);
-            
-            // Position text box
-            let boxX = center.x - boxWidth / 2;
-            let boxY = center.y - boxHeight / 2;
+            // Position text
+            let textX = center.x;
+            let textY = center.y;
             
             // For semi-circles, position in the middle of the arc
             if (pivot.type === 'semicircle') {
                 const midAngle = calculateMiddleAngle(pivot.startAngle, pivot.endAngle) * Math.PI / 180 - Math.PI/2;
-                boxX = center.x + (radiusInPDF * 0.4) * Math.cos(midAngle) - boxWidth / 2;
-                boxY = center.y + (radiusInPDF * 0.4) * Math.sin(midAngle) - boxHeight / 2;
+                textX = center.x + (radiusInPDF * 0.5) * Math.cos(midAngle);
+                textY = center.y + (radiusInPDF * 0.5) * Math.sin(midAngle);
             }
             
-            // Draw info box background with shadow
-            doc.setFillColor(0, 0, 0, 0.1); // Shadow
-            doc.roundedRect(boxX + 1, boxY + 1, boxWidth, boxHeight, 1, 1, 'F');
+            // Draw text with orange color and outline for visibility
+            doc.setFontSize(10);
+            const lineHeight = 4.5;
             
-            doc.setFillColor(255, 255, 255, 0.95); // White background
-            doc.setDrawColor(200, 200, 200);
-            doc.setLineWidth(0.2);
-            doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 1, 1, 'FD');
-            
-            // Draw text
-            doc.setFontSize(8);
-            doc.setTextColor(50, 50, 50); // Dark gray text
             info.forEach((line, index) => {
-                doc.text(line, boxX + boxWidth / 2, boxY + padding + ((index + 1) * lineHeight) - 1, { align: 'center' });
+                const y = textY + (index - info.length/2 + 0.5) * lineHeight;
+                
+                // Draw text outline (stroke) for better visibility
+                doc.setDrawColor(255, 255, 255); // White outline
+                doc.setLineWidth(3);
+                doc.text(line, textX, y, { align: 'center', renderingMode: 'stroke' });
+                
+                // Draw the actual text
+                doc.setTextColor(255, 165, 0); // Orange color
+                doc.text(line, textX, y, { align: 'center' });
             });
         });
         
