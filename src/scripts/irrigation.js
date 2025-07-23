@@ -17,12 +17,14 @@ function createCirclePivot(latlng, radius = 400) {
         className: 'pivot-circle'
     });
     
-    // Create center marker
+    // Create center marker (draggable)
     const centerMarker = L.circleMarker(latlng, {
-        radius: 5,
-        color: '#2c3e50',
+        radius: 8,
+        color: '#fff',
         fillColor: '#2c3e50',
-        fillOpacity: 1
+        fillOpacity: 1,
+        weight: 2,
+        className: 'pivot-center-marker'
     });
     
     // Create label
@@ -61,6 +63,9 @@ function createCirclePivot(latlng, radius = 400) {
     
     // Add click handler
     circle.on('click', () => selectPivot(pivotData));
+    
+    // Add drag functionality
+    enablePivotDragging(pivotData);
     
     // Add to pivots array
     pivotLayers.push(pivotData);
@@ -106,12 +111,14 @@ function createSemiCirclePivot(latlng, radius = 400, startAngle = 0, endAngle = 
         className: 'pivot-circle'
     });
     
-    // Create center marker
+    // Create center marker (draggable)
     const centerMarker = L.circleMarker(latlng, {
-        radius: 5,
-        color: '#2c3e50',
+        radius: 8,
+        color: '#fff',
         fillColor: '#2c3e50',
-        fillOpacity: 1
+        fillOpacity: 1,
+        weight: 2,
+        className: 'pivot-center-marker'
     });
     
     // Create label
@@ -152,6 +159,9 @@ function createSemiCirclePivot(latlng, radius = 400, startAngle = 0, endAngle = 
     
     // Add click handler
     semiCircle.on('click', () => selectPivot(pivotData));
+    
+    // Add drag functionality
+    enablePivotDragging(pivotData);
     
     // Add to pivots array
     pivotLayers.push(pivotData);
@@ -227,37 +237,69 @@ function createResizeHandles(center, radius, type, shape, startAngle = 0, endAng
 function startResizing(e, shape, center, handleAngle, type) {
     L.DomEvent.stopPropagation(e);
     
-    const originalRadius = shape.getRadius ? shape.getRadius() : 
-        calculateDistance(center, shape.getLatLngs()[0][1]);
+    const pivotData = pivotLayers.find(p => p.circle === shape);
+    if (!pivotData) return;
     
     const onMouseMove = (e) => {
         const newPoint = map.mouseEventToLatLng(e);
-        const newRadius = calculateDistance(center, newPoint);
+        const newRadius = calculateDistance(pivotData.center, newPoint);
+        
+        // Limit minimum radius
+        const radius = Math.max(50, newRadius);
+        pivotData.radius = radius;
         
         if (type === 'circle') {
-            shape.setRadius(newRadius);
+            shape.setRadius(radius);
         } else {
             // Recreate semi-circle with new radius
-            updateSemiCircle(shape, center, newRadius);
+            updateSemiCircle(shape, pivotData.center, radius);
         }
         
         // Update handles position
-        updateHandlePositions(center, newRadius, type);
+        updateHandlePositions(pivotData);
+        
+        // Update towers if present
+        if (pivotData.towers) {
+            // Recalculate tower positions with new radius
+            const towerCount = pivotData.towerCount;
+            const spacing = radius / towerCount;
+            
+            pivotData.towers.forEach((tower, index) => {
+                const newDistance = (index + 1) * spacing;
+                tower.data.distance = newDistance;
+                tower.data.spacing = spacing;
+                tower.circle.setRadius(newDistance);
+                
+                // Update label
+                const labelPos = calculatePositionAtAngle(pivotData.center, newDistance, 45);
+                tower.label.setLatLng(labelPos);
+                
+                // Update label text
+                const labelHtml = `<div class="tower-distance-label">${spacing.toFixed(1)}m</div>`;
+                tower.label.setIcon(L.divIcon({
+                    html: labelHtml,
+                    className: 'tower-distance-icon',
+                    iconSize: [60, 20],
+                    iconAnchor: [30, 10]
+                }));
+            });
+        }
+        
+        // Update real-time calculations
+        updatePivotCalculations(pivotData);
+        updatePivotInfo(pivotData);
     };
     
     const onMouseUp = () => {
         map.off('mousemove', onMouseMove);
         map.off('mouseup', onMouseUp);
+        map.dragging.enable();
         
-        // Update calculations
-        const pivotData = pivotLayers.find(p => p.circle === shape);
-        if (pivotData) {
-            pivotData.radius = shape.getRadius ? shape.getRadius() : 
-                calculateDistance(center, shape.getLatLngs()[0][1]);
-            updatePivotCalculations(pivotData);
-        }
+        // Final update
+        updatePivotCalculations(pivotData);
     };
     
+    map.dragging.disable();
     map.on('mousemove', onMouseMove);
     map.on('mouseup', onMouseUp);
 }
@@ -363,4 +405,136 @@ function updateHandlePositions(center, radius, type, startAngle, endAngle) {
 function updateDrawingButtons() {
     document.getElementById('drawCircleBtn').classList.toggle('active', window.currentDrawingMode === 'circle');
     document.getElementById('drawSemiCircleBtn').classList.toggle('active', window.currentDrawingMode === 'semicircle');
+}
+
+// Enable dragging for a pivot
+function enablePivotDragging(pivotData) {
+    let isDragging = false;
+    let dragStartLatLng = null;
+    
+    // Make the center marker draggable
+    pivotData.centerMarker.on('mousedown', (e) => {
+        L.DomEvent.stopPropagation(e);
+        isDragging = true;
+        dragStartLatLng = e.latlng;
+        map.dragging.disable();
+        document.body.style.cursor = 'move';
+        
+        // Highlight the pivot being dragged
+        pivotData.circle.setStyle({ 
+            color: '#e74c3c',
+            weight: 3,
+            opacity: 1
+        });
+    });
+    
+    map.on('mousemove', (e) => {
+        if (!isDragging || pivotData !== selectedPivot) return;
+        
+        const newCenter = e.latlng;
+        
+        // Update circle position
+        pivotData.circle.setLatLng(newCenter);
+        pivotData.center = newCenter;
+        
+        // Update center marker
+        pivotData.centerMarker.setLatLng(newCenter);
+        
+        // Update label
+        pivotData.labelMarker.setLatLng(newCenter);
+        
+        // Update handles
+        updateHandlePositions(pivotData);
+        
+        // Update towers if present
+        if (pivotData.towers) {
+            updateTowerPositions(pivotData);
+        }
+        
+        // Update semi-circle if needed
+        if (pivotData.type === 'semicircle') {
+            updateSemiCirclePosition(pivotData, newCenter);
+        }
+    });
+    
+    map.on('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            map.dragging.enable();
+            document.body.style.cursor = '';
+            
+            // Restore normal style
+            if (selectedPivot === pivotData) {
+                pivotData.circle.setStyle({ 
+                    color: '#e74c3c',
+                    weight: 2,
+                    opacity: 0.8
+                });
+            } else {
+                pivotData.circle.setStyle({ 
+                    color: '#3498db',
+                    weight: 2,
+                    opacity: 0.8
+                });
+            }
+            
+            // Update calculations
+            updatePivotCalculations(pivotData);
+        }
+    });
+}
+
+// Update handle positions when pivot is moved
+function updateHandlePositions(pivotData) {
+    if (!pivotData.handles) return;
+    
+    pivotData.handles.forEach((handle, index) => {
+        if (pivotData.type === 'circle') {
+            const angle = index * 90; // 0, 90, 180, 270 degrees
+            const radian = angle * Math.PI / 180;
+            const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+            handle.setLatLng([lat, lng]);
+        } else if (pivotData.type === 'semicircle') {
+            const angles = [pivotData.startAngle, (pivotData.startAngle + pivotData.endAngle) / 2, pivotData.endAngle];
+            const angle = angles[index];
+            const radian = angle * Math.PI / 180;
+            const lat = pivotData.center.lat + (pivotData.radius / 111000) * Math.sin(radian);
+            const lng = pivotData.center.lng + (pivotData.radius / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+            handle.setLatLng([lat, lng]);
+        }
+    });
+}
+
+// Update tower positions when pivot is moved
+function updateTowerPositions(pivotData) {
+    if (!pivotData.towers) return;
+    
+    pivotData.towers.forEach(tower => {
+        // Update tower circle center
+        tower.circle.setLatLng(pivotData.center);
+        
+        // Update tower label position
+        const angle = 45; // Display labels at 45 degrees
+        const labelPos = calculatePositionAtAngle(pivotData.center, tower.data.distance, angle);
+        tower.label.setLatLng(labelPos);
+    });
+}
+
+// Update semi-circle position
+function updateSemiCirclePosition(pivotData, newCenter) {
+    const points = [];
+    const angleStep = 2; // degrees for smoother curves
+    
+    points.push(newCenter);
+    
+    for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
+        const radian = angle * Math.PI / 180;
+        const lat = newCenter.lat + (pivotData.radius / 111000) * Math.sin(radian);
+        const lng = newCenter.lng + (pivotData.radius / (111000 * Math.cos(newCenter.lat * Math.PI / 180))) * Math.cos(radian);
+        points.push([lat, lng]);
+    }
+    
+    points.push(newCenter);
+    pivotData.circle.setLatLngs(points);
 }

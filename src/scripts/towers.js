@@ -2,8 +2,8 @@
 
 // Apply towers to selected pivot
 function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistances = []) {
-    if (!pivotData || pivotData.type !== 'circle') {
-        showNotification('Towers can only be applied to full circle pivots', 'error');
+    if (!pivotData) {
+        showNotification('Please select a pivot first', 'error');
         return;
     }
     
@@ -40,44 +40,93 @@ function applyTowers(pivotData, towerCount, spacingType = 'equal', customDistanc
     const towerElements = [];
     
     towerPositions.forEach((tower, index) => {
-        // Create tower circle
-        const towerCircle = L.circle(pivotData.center, {
-            radius: tower.distance,
-            color: '#7f8c8d',
-            weight: 1,
-            opacity: 0.6,
-            fillColor: 'transparent',
-            fillOpacity: 0,
-            className: 'tower-circle',
-            interactive: false
-        });
-        
-        // Create distance label
-        const angle = 45; // Display labels at 45 degrees for visibility
-        const labelPos = calculatePositionAtAngle(pivotData.center, tower.distance, angle);
-        
-        const distanceLabel = L.divIcon({
-            html: `<div class="tower-distance-label">${tower.spacing.toFixed(1)}m</div>`,
-            className: 'tower-distance-icon',
-            iconSize: [60, 20],
-            iconAnchor: [30, 10]
-        });
-        
-        const labelMarker = L.marker(labelPos, { 
-            icon: distanceLabel,
-            interactive: false 
-        });
-        
-        // Store tower elements
-        towerElements.push({
-            circle: towerCircle,
-            label: labelMarker,
-            data: tower
-        });
-        
-        // Add to map
-        pivotData.group.addLayer(towerCircle);
-        pivotData.group.addLayer(labelMarker);
+        if (pivotData.type === 'circle') {
+            // Create full tower circle
+            const towerCircle = L.circle(pivotData.center, {
+                radius: tower.distance,
+                color: '#7f8c8d',
+                weight: 1,
+                opacity: 0.6,
+                fillColor: 'transparent',
+                fillOpacity: 0,
+                className: 'tower-circle',
+                interactive: false
+            });
+            
+            // Create distance label
+            const angle = 45; // Display labels at 45 degrees for visibility
+            const labelPos = calculatePositionAtAngle(pivotData.center, tower.distance, angle);
+            
+            const distanceLabel = L.divIcon({
+                html: `<div class="tower-distance-label">${tower.spacing.toFixed(1)}m</div>`,
+                className: 'tower-distance-icon',
+                iconSize: [60, 20],
+                iconAnchor: [30, 10]
+            });
+            
+            const labelMarker = L.marker(labelPos, { 
+                icon: distanceLabel,
+                interactive: false 
+            });
+            
+            // Store tower elements
+            towerElements.push({
+                circle: towerCircle,
+                label: labelMarker,
+                data: tower
+            });
+            
+            // Add to map
+            pivotData.group.addLayer(towerCircle);
+            pivotData.group.addLayer(labelMarker);
+        } else if (pivotData.type === 'semicircle') {
+            // Create semi-circle tower arc
+            const points = [];
+            const angleStep = 2;
+            
+            // Add arc points
+            for (let angle = pivotData.startAngle; angle <= pivotData.endAngle; angle += angleStep) {
+                const radian = angle * Math.PI / 180;
+                const lat = pivotData.center.lat + (tower.distance / 111000) * Math.sin(radian);
+                const lng = pivotData.center.lng + (tower.distance / (111000 * Math.cos(pivotData.center.lat * Math.PI / 180))) * Math.cos(radian);
+                points.push([lat, lng]);
+            }
+            
+            const towerArc = L.polyline(points, {
+                color: '#7f8c8d',
+                weight: 1,
+                opacity: 0.6,
+                className: 'tower-circle',
+                interactive: false
+            });
+            
+            // Create distance label at middle of arc
+            const midAngle = (pivotData.startAngle + pivotData.endAngle) / 2;
+            const labelPos = calculatePositionAtAngle(pivotData.center, tower.distance, midAngle);
+            
+            const distanceLabel = L.divIcon({
+                html: `<div class="tower-distance-label">${tower.spacing.toFixed(1)}m</div>`,
+                className: 'tower-distance-icon',
+                iconSize: [60, 20],
+                iconAnchor: [30, 10]
+            });
+            
+            const labelMarker = L.marker(labelPos, { 
+                icon: distanceLabel,
+                interactive: false 
+            });
+            
+            // Store tower elements
+            towerElements.push({
+                circle: towerArc,
+                label: labelMarker,
+                data: tower
+            });
+            
+            // Add to map
+            pivotData.group.addLayer(towerArc);
+            pivotData.group.addLayer(labelMarker);
+        }
     });
     
     // Update pivot data
@@ -119,7 +168,7 @@ function calculatePositionAtAngle(center, radius, angleDegrees) {
 
 // Show tower configuration UI
 function showTowerConfiguration(pivotData) {
-    if (!pivotData || pivotData.type !== 'circle') {
+    if (!pivotData) {
         document.querySelector('.tower-section').style.display = 'none';
         return;
     }

@@ -294,6 +294,16 @@ body {
     stroke-dasharray: 5, 5;
 }
 
+/* Pivot center marker */
+.pivot-center-marker {
+    cursor: move;
+    transition: all 0.2s ease;
+}
+
+.pivot-center-marker:hover {
+    r: 10 !important;
+}
+
 /* Tower distance labels */
 .tower-distance-label {
     background-color: rgba(255, 255, 255, 0.9);

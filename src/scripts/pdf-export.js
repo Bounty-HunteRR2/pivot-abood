@@ -38,14 +38,42 @@ async function exportToPDF() {
         // Reset text color
         doc.setTextColor(0, 0, 0);
         
-        // Hide map controls before capturing
+        // Hide all UI elements before capturing
+        const sidebar = document.querySelector('.sidebar');
+        const header = document.querySelector('.header');
         const mapControls = document.querySelectorAll('.leaflet-control');
+        const originalSidebarDisplay = sidebar.style.display;
+        const originalHeaderDisplay = header.style.display;
+        
+        sidebar.style.display = 'none';
+        header.style.display = 'none';
         mapControls.forEach(control => control.style.display = 'none');
+        
+        // Force map to full window temporarily
+        const mapContainer = document.getElementById('map');
+        const originalMapStyle = {
+            position: mapContainer.style.position,
+            top: mapContainer.style.top,
+            left: mapContainer.style.left,
+            width: mapContainer.style.width,
+            height: mapContainer.style.height,
+            zIndex: mapContainer.style.zIndex
+        };
+        
+        mapContainer.style.position = 'fixed';
+        mapContainer.style.top = '0';
+        mapContainer.style.left = '0';
+        mapContainer.style.width = '100vw';
+        mapContainer.style.height = '100vh';
+        mapContainer.style.zIndex = '9999';
         
         // Get the map bounds and create a clean capture
         const bounds = map.getBounds();
         const originalCenter = map.getCenter();
         const originalZoom = map.getZoom();
+        
+        // Force map resize
+        map.invalidateSize();
         
         // Fit map to show all content
         if (landPolygon) {
@@ -57,10 +85,9 @@ async function exportToPDF() {
         }
         
         // Wait for map to render
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Capture map image
-        const mapContainer = document.getElementById('map');
+        // Get new dimensions after fullscreen
         const mapRect = mapContainer.getBoundingClientRect();
         const aspectRatio = mapRect.width / mapRect.height;
         
@@ -78,8 +105,18 @@ async function exportToPDF() {
             }
         });
         
-        // Restore map controls and view
+        // Restore everything
+        sidebar.style.display = originalSidebarDisplay;
+        header.style.display = originalHeaderDisplay;
         mapControls.forEach(control => control.style.display = '');
+        
+        // Restore map container styles
+        Object.keys(originalMapStyle).forEach(key => {
+            mapContainer.style[key] = originalMapStyle[key];
+        });
+        
+        // Force map resize and restore view
+        map.invalidateSize();
         map.setView(originalCenter, originalZoom);
         
         // Create a temporary canvas to crop the map properly
