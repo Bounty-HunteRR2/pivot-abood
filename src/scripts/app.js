@@ -141,6 +141,22 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// Helper function to update size inputs
+function updateSizeInputs(pivotData) {
+    if (!pivotData) return;
+    
+    const radiusInput = document.getElementById('radiusInput');
+    const diameterInput = document.getElementById('diameterInput');
+    const areaInput = document.getElementById('areaInput');
+    
+    if (radiusInput) radiusInput.value = pivotData.radius.toFixed(0);
+    if (diameterInput) diameterInput.value = (pivotData.radius * 2).toFixed(0);
+    if (areaInput) {
+        const area = calculatePivotArea(pivotData);
+        areaInput.value = area.toFixed(2);
+    }
+}
+
 // Initialize dynamic size adjustment
 function initializeSizeAdjustment() {
     const radiusInput = document.getElementById('radiusInput');
@@ -244,6 +260,7 @@ function initializeRotationControls() {
                 updateSemiCircleRotation(selectedPivot);
                 updatePivotCalculations(selectedPivot);
                 updatePivotInfo(selectedPivot);
+                updateSizeInputs(selectedPivot);
             } else {
                 // Revert to previous value
                 e.target.value = selectedPivot.startAngle.toFixed(0);
@@ -272,6 +289,7 @@ function initializeRotationControls() {
                 updateSemiCircleRotation(selectedPivot);
                 updatePivotCalculations(selectedPivot);
                 updatePivotInfo(selectedPivot);
+                updateSizeInputs(selectedPivot);
             } else {
                 // Revert to previous value
                 e.target.value = selectedPivot.endAngle.toFixed(0);
@@ -314,6 +332,7 @@ function initializeRotationControls() {
             updateSemiCircleRotation(selectedPivot);
             updatePivotCalculations(selectedPivot);
             updatePivotInfo(selectedPivot);
+            updateSizeInputs(selectedPivot);
         });
     });
     

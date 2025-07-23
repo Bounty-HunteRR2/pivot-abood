@@ -461,6 +461,11 @@ function handleRotationMouseMove(e) {
     // Update calculations
     updatePivotCalculations(rotatingPivot);
     updatePivotInfo(rotatingPivot);
+    
+    // Update size inputs including area
+    if (typeof updateSizeInputs === 'function') {
+        updateSizeInputs(rotatingPivot);
+    }
 }
 
 function handleRotationClick(e) {

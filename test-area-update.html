@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Area Update</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Test Area Update on Angle Change</h1>
+    
+    <div class="test">
+        <h3>Test Scenario:</h3>
+        <p>1. Create a semi-circle pivot with radius 373m</p>
+        <p>2. Initial angles: 0° to 180° (area should be ~21.83 ha)</p>
+        <p>3. Change end angle to 254° (area should be ~30.80 ha)</p>
+        <p>4. The area input field should automatically update to 30.80</p>
+    </div>
+    
+    <div class="test">
+        <h3>Expected Behavior:</h3>
+        <ul>
+            <li>When changing start/end angles via input fields, area input updates</li>
+            <li>When clicking orientation buttons (North/East/South/West), area input updates</li>
+            <li>When using mouse rotation, area input updates</li>
+        </ul>
+    </div>
+    
+    <script>
+        console.log("Test file created. Please test the application manually:");
+        console.log("1. Create a semi-circle pivot");
+        console.log("2. Change the angles and verify area input updates");
+        console.log("3. Use orientation buttons and verify area input updates");
+        console.log("4. Use mouse rotation and verify area input updates");
+    </script>
+</body>
+</html>
