@@ -87,18 +87,19 @@ async function exportToPDF() {
             doc.setDrawColor(139, 69, 19); // Brown color for land boundary
             doc.setLineWidth(0.5);
             
-            let firstPoint = true;
-            coords.forEach(coord => {
-                const point = latLngToPDF(coord.lat, coord.lng);
-                if (firstPoint) {
-                    doc.moveTo(point.x, point.y);
-                    firstPoint = false;
-                } else {
-                    doc.lineTo(point.x, point.y);
-                }
-            });
-            doc.closePath();
-            doc.stroke();
+            // Convert coordinates to lines array for jsPDF
+            const lines = [];
+            for (let i = 0; i < coords.length; i++) {
+                const current = latLngToPDF(coords[i].lat, coords[i].lng);
+                const next = latLngToPDF(coords[(i + 1) % coords.length].lat, coords[(i + 1) % coords.length].lng);
+                lines.push([next.x - current.x, next.y - current.y]);
+            }
+            
+            // Draw the polygon using lines
+            if (lines.length > 0) {
+                const firstPoint = latLngToPDF(coords[0].lat, coords[0].lng);
+                doc.lines(lines, firstPoint.x, firstPoint.y, [1, 1], 'S', true);
+            }
         }
         
         // Draw each pivot
@@ -156,16 +157,17 @@ async function exportToPDF() {
                     }
                 }
                 
-                // Draw the filled shape
-                points.forEach((point, index) => {
-                    if (index === 0) {
-                        doc.moveTo(point[0], point[1]);
-                    } else {
-                        doc.lineTo(point[0], point[1]);
-                    }
-                });
-                doc.closePath();
-                doc.fill();
+                // Draw the filled semi-circle using triangles
+                // jsPDF doesn't have a direct polygon fill, so we'll use triangles
+                for (let i = 1; i < points.length; i++) {
+                    doc.setFillColor(34, 139, 34);
+                    doc.triangle(
+                        points[0][0], points[0][1],  // center
+                        points[i-1][0], points[i-1][1],  // previous point
+                        points[i][0], points[i][1],  // current point
+                        'F'
+                    );
+                }
             }
             
             // Draw towers if present
